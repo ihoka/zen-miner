@@ -1,0 +1,15 @@
+[tools]
+ruby = "latest"
+
+[env]
+XMRIG_PATH = "/Users/ihoka/crypto/xmrig-6.24.0"
+_.path = { path = ["{{env.XMRIG_PATH}}"], tools = true }
+MONERO_WALLET = "41y5Qg2H7YgK42nnsRUpuTLTC5th9GhwRgzqgPaVk5V4bpGd22W8XVc8Tz31dK8mLjQo67BW7HQUGRZPCEEkANyMRUYVxcb"
+POOL_URL = "pool.hashvault.pro:443"
+WORKER_ID = "MacBookPro"
+
+[tasks."mine:cpu"]
+run = [
+    "{{env.XMRIG_PATH}}/xmrig -o {{env.POOL_URL}} -u {{env.MONERO_WALLET}} -p {{env.WORKER_ID}}",
+]
+description = "Start CPU-only mining"
