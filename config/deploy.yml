@@ -9,10 +9,16 @@ image: ihoka/zen-miner
 # TODO: Replace with actual server hostnames or IPs
 servers:
   web:
-    - mini-1
-    - miner-beta
-    - miner-gamma
-    - miner-delta
+    hosts:
+      - mini-1
+      - miner-beta
+      - miner-gamma
+      - miner-delta
+    # Resource limits: Keep Rails lightweight so XMRig has CPU/RAM for mining
+    options:
+      memory: 512m              # 512MB for Rails (Puma + Solid Queue + SQLite)
+      memory-reservation: 256m  # Soft limit for better scheduling
+      cpus: "1.0"              # 1 CPU core max (leaves rest for XMRig)
 
 # SSH configuration - use 'deploy' user instead of root
 ssh:
