@@ -27,9 +27,9 @@ if grep -q "example\.com" "$CONFIG_FILE"; then
   exit 1
 fi
 
-if grep -q "your-dockerhub-username" "$CONFIG_FILE"; then
+if grep -q "ihoka" "$CONFIG_FILE"; then
   echo "ERROR: Placeholder Docker Hub username found in $CONFIG_FILE"
-  echo "Please replace 'your-dockerhub-username' with your actual Docker Hub username."
+  echo "Please replace 'ihoka' with your actual Docker Hub username."
   exit 1
 fi
 

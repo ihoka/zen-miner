@@ -53,19 +53,19 @@ The application cannot be deployed to production because the Kamal configuration
 ## Technical Dependencies
 
 ### Required
-| Dependency | Version | Purpose |
-|------------|---------|---------|
-| Kamal | 2.x (bundled) | Deployment orchestration |
-| Docker | 24.0+ | Container runtime on servers |
-| Ruby | 3.4.5 | Application runtime |
-| Thruster | (bundled) | HTTP asset caching/compression |
+| Dependency | Version       | Purpose                        |
+| ---------- | ------------- | ------------------------------ |
+| Kamal      | 2.x (bundled) | Deployment orchestration       |
+| Docker     | 24.0+         | Container runtime on servers   |
+| Ruby       | 3.4.5         | Application runtime            |
+| Thruster   | (bundled)     | HTTP asset caching/compression |
 
 ### External Services
-| Service | Purpose | Configuration |
-|---------|---------|---------------|
-| Docker Hub | Container registry | Username + access token |
-| Cloudflare | SSL termination, CDN, proxy | DNS + proxy enabled |
-| SSH | Server access | Key-based authentication |
+| Service    | Purpose                     | Configuration            |
+| ---------- | --------------------------- | ------------------------ |
+| Docker Hub | Container registry          | Username + access token  |
+| Cloudflare | SSL termination, CDN, proxy | DNS + proxy enabled      |
+| SSH        | Server access               | Key-based authentication |
 
 ### Server Requirements
 Each deployment server needs:
@@ -205,13 +205,13 @@ needed, migrate to PostgreSQL (e.g., Neon).
 
 Since this is an open source project, secrets are **never stored in the repository**. Maintainers fetch secrets from their password manager at deploy time using Kamal's built-in adapters.
 
-| Secret | Storage | Who Has Access |
-|--------|---------|----------------|
-| `RAILS_MASTER_KEY` | 1Password/Bitwarden vault | Maintainers only |
-| `KAMAL_REGISTRY_USERNAME` | 1Password/Bitwarden vault | Maintainers only |
-| `KAMAL_REGISTRY_PASSWORD` | 1Password/Bitwarden vault | Maintainers only |
-| SSH keys | Each maintainer's `~/.ssh/` | Individual |
-| Server IPs, domain | `config/deploy.yml` (public) | Everyone |
+| Secret                    | Storage                      | Who Has Access   |
+| ------------------------- | ---------------------------- | ---------------- |
+| `RAILS_MASTER_KEY`        | 1Password/Bitwarden vault    | Maintainers only |
+| `KAMAL_REGISTRY_USERNAME` | 1Password/Bitwarden vault    | Maintainers only |
+| `KAMAL_REGISTRY_PASSWORD` | 1Password/Bitwarden vault    | Maintainers only |
+| SSH keys                  | Each maintainer's `~/.ssh/`  | Individual       |
+| Server IPs, domain        | `config/deploy.yml` (public) | Everyone         |
 
 ### Configuration Changes
 
@@ -219,10 +219,10 @@ Since this is an open source project, secrets are **never stored in the reposito
 
 ```yaml
 # Name of your application. Used to uniquely configure containers.
-service: zen_miner
+service: zen-miner
 
 # Name of the container image.
-image: your-dockerhub-username/zen_miner
+image: ihoka/zen-miner
 
 # Deploy to these servers (6 servers behind Cloudflare load balancing)
 servers:
@@ -247,7 +247,7 @@ proxy:
 # Container registry - Docker Hub
 registry:
   server: docker.io
-  username: your-dockerhub-username
+  username: ihoka
   password:
     - KAMAL_REGISTRY_PASSWORD
 
@@ -277,7 +277,7 @@ aliases:
 
 # Persistent storage for Active Storage uploads
 volumes:
-  - "zen_miner_storage:/rails/storage"
+  - "zen-miner_storage:/rails/storage"
 
 # Asset bridging between deployments
 asset_path: /rails/public/assets
@@ -423,12 +423,12 @@ echo "Deployment of version $VERSION complete!"
 
 Required Cloudflare settings:
 
-| Setting | Value | Location |
-|---------|-------|----------|
-| SSL/TLS Mode | Full | SSL/TLS > Overview |
-| Always Use HTTPS | On | SSL/TLS > Edge Certificates |
-| Minimum TLS Version | 1.2 | SSL/TLS > Edge Certificates |
-| Proxy Status | Proxied (orange cloud) | DNS > Records |
+| Setting             | Value                  | Location                    |
+| ------------------- | ---------------------- | --------------------------- |
+| SSL/TLS Mode        | Full                   | SSL/TLS > Overview          |
+| Always Use HTTPS    | On                     | SSL/TLS > Edge Certificates |
+| Minimum TLS Version | 1.2                    | SSL/TLS > Edge Certificates |
+| Proxy Status        | Proxied (orange cloud) | DNS > Records               |
 
 ## User Experience
 
@@ -518,13 +518,13 @@ end
 
 ### Deployment Testing Checklist
 
-| Test | Command | Expected Result |
-|------|---------|-----------------|
-| Config valid | `bin/kamal config` | No errors, shows parsed config |
-| Registry auth | `docker login docker.io` | Login succeeded |
-| SSH access | `ssh deploy@your-server 'docker ps'` | Lists containers |
-| DNS resolution | `dig app.example.com` | Returns Cloudflare IPs |
-| SSL valid | `curl -I https://app.example.com` | HTTP 200, valid cert |
+| Test           | Command                              | Expected Result                |
+| -------------- | ------------------------------------ | ------------------------------ |
+| Config valid   | `bin/kamal config`                   | No errors, shows parsed config |
+| Registry auth  | `docker login docker.io`             | Login succeeded                |
+| SSH access     | `ssh deploy@your-server 'docker ps'` | Lists containers               |
+| DNS resolution | `dig app.example.com`                | Returns Cloudflare IPs         |
+| SSL valid      | `curl -I https://app.example.com`    | HTTP 200, valid cert           |
 
 ### Rollback Testing
 
@@ -568,11 +568,11 @@ The default `config/puma.rb` should work, but consider:
 
 ### Secrets Management
 
-| Secret | Storage | Access |
-|--------|---------|--------|
-| RAILS_MASTER_KEY | `config/master.key` (gitignored) | Read at deploy time |
-| KAMAL_REGISTRY_PASSWORD | Environment variable | Set in CI or shell |
-| SSH Keys | Local `~/.ssh/` | Used by Kamal for deployment |
+| Secret                  | Storage                          | Access                       |
+| ----------------------- | -------------------------------- | ---------------------------- |
+| RAILS_MASTER_KEY        | `config/master.key` (gitignored) | Read at deploy time          |
+| KAMAL_REGISTRY_PASSWORD | Environment variable             | Set in CI or shell           |
+| SSH Keys                | Local `~/.ssh/`                  | Used by Kamal for deployment |
 
 ### Container Security
 

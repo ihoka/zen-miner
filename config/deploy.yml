@@ -1,9 +1,9 @@
 # Name of your application. Used to uniquely configure containers.
-service: zen_miner
+service: zen-miner
 
 # Name of the container image.
 # TODO: Replace with your Docker Hub username
-image: your-dockerhub-username/zen_miner
+image: ihoka/zen-miner
 
 # Deploy to these servers (6 servers behind Cloudflare load balancing).
 # TODO: Replace with actual server hostnames or IPs
@@ -70,7 +70,7 @@ aliases:
 # Persistent storage for Active Storage uploads.
 # Note: With 6 servers, consider using S3/R2 for Active Storage instead of local volumes.
 volumes:
-  - "zen_miner_storage:/rails/storage"
+  - "zen-miner_storage:/rails/storage"
 
 # Bridge fingerprinted assets between deployments to avoid 404s.
 asset_path: /rails/public/assets
