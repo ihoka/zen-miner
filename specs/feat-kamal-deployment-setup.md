@@ -37,7 +37,7 @@ The application cannot be deployed to production because the Kamal configuration
 - Configure Docker Hub as the container registry with proper authentication
 - Set up multi-server deployment (6 servers) with Cloudflare load balancing
 - Enable Cloudflare proxy integration with proper SSL settings
-- Configure Neon PostgreSQL as the shared database for all servers
+- Use SQLite per server (no shared state needed yet)
 - Establish secrets management via 1Password/Bitwarden (open source friendly)
 - Set up health checks and zero-downtime deployments
 
@@ -99,19 +99,15 @@ Each deployment server needs:
      │   ↓    ││   ↓    ││   ↓    ││   ↓    ││   ↓    ││   ↓    │
      │ Rails  ││ Rails  ││ Rails  ││ Rails  ││ Rails  ││ Rails  │
      │ + Puma ││ + Puma ││ + Puma ││ + Puma ││ + Puma ││ + Puma │
+     │   ↓    ││   ↓    ││   ↓    ││   ↓    ││   ↓    ││   ↓    │
+     │SQLite  ││SQLite  ││SQLite  ││SQLite  ││SQLite  ││SQLite  │
+     │(local) ││(local) ││(local) ││(local) ││(local) ││(local) │
      └────────┘└────────┘└────────┘└────────┘└────────┘└────────┘
-          │         │         │           │         │         │
-          └─────────┴─────────┴─────┬─────┴─────────┴─────────┘
-                                    ▼
-                    ┌───────────────────────────┐
-                    │      NEON PostgreSQL      │
-                    │  (Serverless, managed)    │
-                    │───────────────────────────│
-                    │  Connection pooling       │
-                    │  Auto-scaling             │
-                    │  Branching for dev/test   │
-                    └───────────────────────────┘
 ```
+
+Each server has its own SQLite database (no shared state). This is suitable for
+stateless workers or applications without models yet. When shared database is
+needed, migrate to PostgreSQL (e.g., Neon).
 
 ### Secrets Management (Open Source)
 
@@ -120,8 +116,8 @@ Since this is an open source project, secrets are **never stored in the reposito
 | Secret | Storage | Who Has Access |
 |--------|---------|----------------|
 | `RAILS_MASTER_KEY` | 1Password/Bitwarden vault | Maintainers only |
+| `KAMAL_REGISTRY_USERNAME` | 1Password/Bitwarden vault | Maintainers only |
 | `KAMAL_REGISTRY_PASSWORD` | 1Password/Bitwarden vault | Maintainers only |
-| `DATABASE_URL` | 1Password/Bitwarden vault | Maintainers only |
 | SSH keys | Each maintainer's `~/.ssh/` | Individual |
 | Server IPs, domain | `config/deploy.yml` (public) | Everyone |
 
@@ -167,7 +163,6 @@ registry:
 env:
   secret:
     - RAILS_MASTER_KEY
-    - DATABASE_URL  # Neon PostgreSQL connection string
   clear:
     # Solid Queue runs in Puma process
     SOLID_QUEUE_IN_PUMA: true
@@ -175,7 +170,7 @@ env:
     # Cloudflare sends X-Forwarded-For, trust the proxy
     RAILS_ASSUME_SSL: true
 
-    # 6 servers - 2 Puma workers each = 12 total workers
+    # 2 Puma workers per server
     WEB_CONCURRENCY: 2
 
     # Log level for production
@@ -213,19 +208,19 @@ builder:
 #   1. Install 1Password CLI: https://developer.1password.com/docs/cli/get-started/
 #   2. Sign in: op signin
 #   3. Create vault item "Zen Miner Production" with fields:
+#      - KAMAL_REGISTRY_USERNAME (Docker Hub username)
 #      - KAMAL_REGISTRY_PASSWORD (Docker Hub access token)
 #      - RAILS_MASTER_KEY (from config/master.key)
-#      - DATABASE_URL (Neon PostgreSQL connection string)
 
 SECRETS=$(kamal secrets fetch \
   --adapter 1password \
   --account your-team.1password.com \
   --from "Private/Zen Miner Production" \
-  KAMAL_REGISTRY_PASSWORD RAILS_MASTER_KEY DATABASE_URL)
+  KAMAL_REGISTRY_USERNAME KAMAL_REGISTRY_PASSWORD RAILS_MASTER_KEY)
 
+KAMAL_REGISTRY_USERNAME=$(kamal secrets extract KAMAL_REGISTRY_USERNAME $SECRETS)
 KAMAL_REGISTRY_PASSWORD=$(kamal secrets extract KAMAL_REGISTRY_PASSWORD $SECRETS)
 RAILS_MASTER_KEY=$(kamal secrets extract RAILS_MASTER_KEY $SECRETS)
-DATABASE_URL=$(kamal secrets extract DATABASE_URL $SECRETS)
 
 # =============================================================================
 # BITWARDEN INTEGRATION (alternative)
@@ -240,11 +235,11 @@ DATABASE_URL=$(kamal secrets extract DATABASE_URL $SECRETS)
 # SECRETS=$(kamal secrets fetch \
 #   --adapter bitwarden \
 #   --from "Zen Miner Production" \
-#   KAMAL_REGISTRY_PASSWORD RAILS_MASTER_KEY DATABASE_URL)
+#   KAMAL_REGISTRY_USERNAME KAMAL_REGISTRY_PASSWORD RAILS_MASTER_KEY)
 #
+# KAMAL_REGISTRY_USERNAME=$(kamal secrets extract KAMAL_REGISTRY_USERNAME $SECRETS)
 # KAMAL_REGISTRY_PASSWORD=$(kamal secrets extract KAMAL_REGISTRY_PASSWORD $SECRETS)
 # RAILS_MASTER_KEY=$(kamal secrets extract RAILS_MASTER_KEY $SECRETS)
-# DATABASE_URL=$(kamal secrets extract DATABASE_URL $SECRETS)
 ```
 
 ### Rails Configuration Changes

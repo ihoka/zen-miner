@@ -44,15 +44,14 @@ registry:
 env:
   secret:
     - RAILS_MASTER_KEY
-    - DATABASE_URL
   clear:
-    # Run Solid Queue in Puma process (suitable for 6 servers)
+    # Run Solid Queue in Puma process
     SOLID_QUEUE_IN_PUMA: true
 
     # Trust Cloudflare proxy headers
     RAILS_ASSUME_SSL: true
 
-    # 2 Puma workers per server = 12 total workers across 6 servers
+    # 2 Puma workers per server
     WEB_CONCURRENCY: 2
 
     # Production log level

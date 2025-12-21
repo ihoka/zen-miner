@@ -4,7 +4,9 @@
       "Skill(spec:create)",
       "Skill(spec:validate)",
       "Bash(git checkout:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)"
     ]
   }
 }
