@@ -7,6 +7,22 @@ _.path = { path = ["{{env.XMRIG_PATH}}"], tools = true }
 MONERO_WALLET = "41y5Qg2H7YgK42nnsRUpuTLTC5th9GhwRgzqgPaVk5V4bpGd22W8XVc8Tz31dK8mLjQo67BW7HQUGRZPCEEkANyMRUYVxcb"
 POOL_URL = "pool.hashvault.pro:443"
 
+# Worker identification (set per machine)
+WORKER_ID = "default"         # Unique identifier for this mining rig
+
+# Throttling parameters (adjust per machine)
+CPU_MAX_THREADS_HINT = "50"   # CPU usage percentage (0-100)
+CPU_PRIORITY = "1"            # Process priority (0=idle, 5=highest)
+PAUSE_ON_BATTERY = "false"    # Pause mining when on battery
+PAUSE_ON_ACTIVE = "false"     # Pause mining when user is active
+
 [tasks."mine:cpu"]
-run = ["{{env.XMRIG_PATH}}/xmrig -c configs/cpu.json"]
+run = ["""
+{{env.XMRIG_PATH}}/xmrig -c configs/cpu.json \
+  --rig-id={{env.WORKER_ID}} \
+  --cpu-max-threads-hint={{env.CPU_MAX_THREADS_HINT}} \
+  --cpu-priority={{env.CPU_PRIORITY}} \
+  --pause-on-battery={{env.PAUSE_ON_BATTERY}} \
+  --pause-on-active={{env.PAUSE_ON_ACTIVE}}
+"""]
 description = "Start CPU-only mining (throttled)"
