@@ -75,6 +75,98 @@ Each deployment server needs:
 - Ports 80/443 open for web traffic
 - Sufficient disk space for SQLite database
 
+## Server Prerequisites & Setup
+
+Before running `kamal setup`, each Arch Linux server must be configured with the following components.
+
+### 1. Install Docker
+
+```bash
+# Update system
+sudo pacman -Syu
+
+# Install Docker
+sudo pacman -S docker
+
+# Enable and start Docker service
+sudo systemctl enable docker
+sudo systemctl start docker
+
+# Verify Docker is running
+sudo docker --version
+```
+
+### 2. Create Deployment User & Configure SSH
+
+```bash
+# Create a deployment user (if not using root)
+sudo useradd -m -G docker deploy
+
+# Add your SSH public key to the deployment user
+sudo mkdir -p /home/deploy/.ssh
+sudo vim /home/deploy/.ssh/authorized_keys  # Paste your public key
+sudo chown -R deploy:deploy /home/deploy/.ssh
+sudo chmod 700 /home/deploy/.ssh
+sudo chmod 600 /home/deploy/.ssh/authorized_keys
+```
+
+### 3. Configure Firewall
+
+```bash
+# If using ufw (needs to be installed)
+sudo pacman -S ufw
+sudo ufw allow 22/tcp    # SSH
+sudo ufw allow 80/tcp    # HTTP
+sudo ufw allow 443/tcp   # HTTPS
+sudo ufw enable
+
+# Or with iptables directly
+sudo iptables -A INPUT -p tcp --dport 22 -j ACCEPT
+sudo iptables -A INPUT -p tcp --dport 80 -j ACCEPT
+sudo iptables -A INPUT -p tcp --dport 443 -j ACCEPT
+```
+
+### 4. Verify Outbound Connectivity
+
+```bash
+# Test connection to Docker Hub
+curl -I https://hub.docker.com
+
+# Test Docker pull
+sudo docker pull hello-world
+sudo docker run hello-world
+```
+
+### 5. Verify SSH Access from Local Machine
+
+Before running `kamal setup`, verify SSH access from your local machine:
+
+```bash
+# Test SSH connection (replace with your server)
+ssh deploy@server1.example.com "docker ps"
+
+# If successful, you should see Docker container list (empty initially)
+```
+
+### Server Setup Checklist
+
+For each of your 6 servers:
+
+- [ ] Docker installed and running (`systemctl status docker`)
+- [ ] Deployment user created and added to `docker` group
+- [ ] SSH key-based authentication configured
+- [ ] Ports 80, 443, and 22 accessible
+- [ ] Outbound HTTPS to Docker Hub working
+- [ ] Sufficient disk space (recommend at least 20GB free)
+
+Once all servers are configured, run:
+
+```bash
+bin/kamal setup
+```
+
+This will bootstrap Kamal on each server and deploy your application.
+
 ## Detailed Design
 
 ### Architecture Overview
