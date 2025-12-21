@@ -2,7 +2,9 @@
   "permissions": {
     "allow": [
       "Skill(spec:create)",
-      "Skill(spec:validate)"
+      "Skill(spec:validate)",
+      "Bash(git checkout:*)",
+      "Bash(git add:*)"
     ]
   }
 }

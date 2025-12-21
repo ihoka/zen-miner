@@ -25,10 +25,11 @@ Rails.application.configure do
   config.active_storage.service = :local
 
   # Assume all access to the app is happening through a SSL-terminating reverse proxy.
-  # config.assume_ssl = true
+  # Required for Cloudflare proxy setup.
+  config.assume_ssl = true
 
   # Force all access to the app over SSL, use Strict-Transport-Security, and use secure cookies.
-  # config.force_ssl = true
+  config.force_ssl = true
 
   # Skip http-to-https redirect for the default health check endpoint.
   # config.ssl_options = { redirect: { exclude: ->(request) { request.path == "/up" } } }
@@ -80,11 +81,34 @@ Rails.application.configure do
   config.active_record.attributes_for_inspect = [ :id ]
 
   # Enable DNS rebinding protection and other `Host` header attacks.
-  # config.hosts = [
-  #   "example.com",     # Allow requests from example.com
-  #   /.*\.example\.com/ # Allow requests from subdomains like `www.example.com`
-  # ]
-  #
+  # TODO: Replace with your production domain
+  config.hosts = [
+    "app.example.com",     # Primary domain
+    /.*\.example\.com/     # Allow subdomains if needed
+  ]
+
   # Skip DNS rebinding protection for the default health check endpoint.
-  # config.host_authorization = { exclude: ->(request) { request.path == "/up" } }
+  config.host_authorization = { exclude: ->(request) { request.path == "/up" } }
+
+  # Trust Cloudflare proxy headers.
+  # These IP ranges are from https://www.cloudflare.com/ips/
+  # Consider using the cloudflare-rails gem for automatic updates.
+  config.action_dispatch.trusted_proxies = ActionDispatch::RemoteIp::TRUSTED_PROXIES + [
+    # Cloudflare IPv4 ranges
+    IPAddr.new("173.245.48.0/20"),
+    IPAddr.new("103.21.244.0/22"),
+    IPAddr.new("103.22.200.0/22"),
+    IPAddr.new("103.31.4.0/22"),
+    IPAddr.new("141.101.64.0/18"),
+    IPAddr.new("108.162.192.0/18"),
+    IPAddr.new("190.93.240.0/20"),
+    IPAddr.new("188.114.96.0/20"),
+    IPAddr.new("197.234.240.0/22"),
+    IPAddr.new("198.41.128.0/17"),
+    IPAddr.new("162.158.0.0/15"),
+    IPAddr.new("104.16.0.0/13"),
+    IPAddr.new("104.24.0.0/14"),
+    IPAddr.new("172.64.0.0/13"),
+    IPAddr.new("131.0.72.0/22"),
+  ]
 end
