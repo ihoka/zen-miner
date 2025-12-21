@@ -143,7 +143,7 @@ Before running `kamal setup`, verify SSH access from your local machine:
 
 ```bash
 # Test SSH connection (replace with your server)
-ssh deploy@server1.example.com "docker ps"
+ssh deploy@server1.zencash.ro "docker ps"
 
 # If successful, you should see Docker container list (empty initially)
 ```
@@ -175,7 +175,7 @@ This will bootstrap Kamal on each server and deploy your application.
 ┌─────────────────────────────────────────────────────────────────────┐
 │                         CLOUDFLARE                                   │
 │  ┌─────────────────────────────────────────────────────────────┐    │
-│  │  DNS: app.example.com → Cloudflare Proxy (Load Balanced)    │    │
+│  │  DNS: app.zencash.ro → Cloudflare Proxy (Load Balanced)    │    │
 │  │  SSL: Full mode (Cloudflare → HTTP → Servers)               │    │
 │  │  Caching: Static assets cached at edge                      │    │
 │  └─────────────────────────────────────────────────────────────┘    │
@@ -227,19 +227,19 @@ image: ihoka/zen-miner
 # Deploy to these servers (6 servers behind Cloudflare load balancing)
 servers:
   web:
-    - server1.example.com
-    - server2.example.com
-    - server3.example.com
-    - server4.example.com
-    - server5.example.com
-    - server6.example.com
+    - server1.zencash.ro
+    - server2.zencash.ro
+    - server3.zencash.ro
+    - server4.zencash.ro
+    - server5.zencash.ro
+    - server6.zencash.ro
 
 # Cloudflare proxy configuration
 # SSL is terminated at Cloudflare, so we don't need Let's Encrypt here
 # Set Cloudflare SSL/TLS mode to "Full"
 proxy:
   ssl: false  # Cloudflare handles SSL
-  host: app.example.com  # Replace with your domain
+  host: app.zencash.ro  # Replace with your domain
   healthcheck:
     path: /up
     interval: 3
@@ -368,7 +368,7 @@ config.action_dispatch.trusted_proxies = ActionDispatch::RemoteIp::TRUSTED_PROXI
 ]
 
 # Ensure proper host headers from Cloudflare
-config.hosts << "app.example.com"  # Replace with your domain
+config.hosts << "app.zencash.ro"  # Replace with your domain
 config.hosts << /.*\.example\.com/ # Allow subdomains if needed
 ```
 
@@ -414,7 +414,7 @@ VERSION=$(cat .kamal/version 2>/dev/null || echo "unknown")
 echo "Deployment of version $VERSION complete!"
 
 # Optional: Send notification (uncomment and configure)
-# curl -X POST "https://api.example.com/notify" \
+# curl -X POST "https://api.zencash.ro/notify" \
 #   -H "Content-Type: application/json" \
 #   -d "{\"text\": \"Zen Miner deployed: $VERSION\"}"
 ```
@@ -523,8 +523,8 @@ end
 | Config valid   | `bin/kamal config`                   | No errors, shows parsed config |
 | Registry auth  | `docker login docker.io`             | Login succeeded                |
 | SSH access     | `ssh deploy@your-server 'docker ps'` | Lists containers               |
-| DNS resolution | `dig app.example.com`                | Returns Cloudflare IPs         |
-| SSL valid      | `curl -I https://app.example.com`    | HTTP 200, valid cert           |
+| DNS resolution | `dig app.zencash.ro`                 | Returns Cloudflare IPs         |
+| SSL valid      | `curl -I https://app.zencash.ro`     | HTTP 200, valid cert           |
 
 ### Rollback Testing
 

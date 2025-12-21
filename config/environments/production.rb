@@ -19,7 +19,7 @@ Rails.application.configure do
   config.public_file_server.headers = { "cache-control" => "public, max-age=#{1.year.to_i}" }
 
   # Enable serving of images, stylesheets, and JavaScripts from an asset server.
-  # config.asset_host = "http://assets.example.com"
+  # config.asset_host = "http://assets.zencash.ro"
 
   # Store uploaded files on the local file system (see config/storage.yml for options).
   config.active_storage.service = :local
@@ -59,13 +59,13 @@ Rails.application.configure do
   # config.action_mailer.raise_delivery_errors = false
 
   # Set host to be used by links generated in mailer templates.
-  config.action_mailer.default_url_options = { host: "example.com" }
+  config.action_mailer.default_url_options = { host: "zencash.ro" }
 
   # Specify outgoing SMTP server. Remember to add smtp/* credentials via bin/rails credentials:edit.
   # config.action_mailer.smtp_settings = {
   #   user_name: Rails.application.credentials.dig(:smtp, :user_name),
   #   password: Rails.application.credentials.dig(:smtp, :password),
-  #   address: "smtp.example.com",
+  #   address: "smtp.zencash.ro",
   #   port: 587,
   #   authentication: :plain
   # }
@@ -83,7 +83,7 @@ Rails.application.configure do
   # Enable DNS rebinding protection and other `Host` header attacks.
   # TODO: Replace with your production domain
   config.hosts = [
-    "app.example.com",     # Primary domain
+    "app.zencash.ro",     # Primary domain
     /.*\.example\.com/     # Allow subdomains if needed
   ]
 
