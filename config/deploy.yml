@@ -17,14 +17,14 @@ servers:
     - server6.example.com
 
 # Cloudflare proxy configuration.
-# SSL is terminated at Cloudflare, so we use HTTP internally.
-# Set Cloudflare SSL/TLS mode to "Full" in your Cloudflare dashboard.
+# SSL is enabled on origin - set Cloudflare SSL/TLS mode to "Full (strict)" in your dashboard.
+# kamal-proxy will auto-provision Let's Encrypt certificates.
 #
 # Requires config.assume_ssl = true and config.force_ssl = true in production.rb
 #
 # TODO: Replace with your production domain
 proxy:
-  ssl: false
+  ssl: true
   host: app.example.com
   healthcheck:
     path: /up

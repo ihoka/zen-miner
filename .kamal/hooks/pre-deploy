@@ -1,0 +1,45 @@
+#!/bin/bash
+
+# Pre-deploy hook: Validate configuration before deployment
+#
+# Available environment variables:
+# KAMAL_RECORDED_AT, KAMAL_PERFORMER, KAMAL_VERSION
+# KAMAL_HOSTS, KAMAL_COMMAND, KAMAL_SUBCOMMAND
+# KAMAL_ROLES (if set), KAMAL_DESTINATION (if set)
+
+set -e
+
+echo "Running pre-deploy validation..."
+
+# Skip validation for rollbacks
+if [ "$KAMAL_COMMAND" = "rollback" ]; then
+  echo "Skipping validation for rollback"
+  exit 0
+fi
+
+# Validate placeholder domains are replaced
+CONFIG_FILE="config/deploy.yml"
+
+if grep -q "example\.com" "$CONFIG_FILE"; then
+  echo "ERROR: Placeholder domains found in $CONFIG_FILE"
+  echo "Please replace 'example.com' with your actual domain before deploying."
+  grep "example\.com" "$CONFIG_FILE"
+  exit 1
+fi
+
+if grep -q "your-dockerhub-username" "$CONFIG_FILE"; then
+  echo "ERROR: Placeholder Docker Hub username found in $CONFIG_FILE"
+  echo "Please replace 'your-dockerhub-username' with your actual Docker Hub username."
+  exit 1
+fi
+
+# Validate production.rb placeholder domains
+PROD_CONFIG="config/environments/production.rb"
+
+if grep -q "example\.com" "$PROD_CONFIG"; then
+  echo "ERROR: Placeholder domains found in $PROD_CONFIG"
+  echo "Please update config.hosts with your actual domain."
+  exit 1
+fi
+
+echo "Pre-deploy validation passed!"

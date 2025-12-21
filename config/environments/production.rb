@@ -91,24 +91,7 @@ Rails.application.configure do
   config.host_authorization = { exclude: ->(request) { request.path == "/up" } }
 
   # Trust Cloudflare proxy headers.
-  # These IP ranges are from https://www.cloudflare.com/ips/
-  # Consider using the cloudflare-rails gem for automatic updates.
-  config.action_dispatch.trusted_proxies = ActionDispatch::RemoteIp::TRUSTED_PROXIES + [
-    # Cloudflare IPv4 ranges
-    IPAddr.new("173.245.48.0/20"),
-    IPAddr.new("103.21.244.0/22"),
-    IPAddr.new("103.22.200.0/22"),
-    IPAddr.new("103.31.4.0/22"),
-    IPAddr.new("141.101.64.0/18"),
-    IPAddr.new("108.162.192.0/18"),
-    IPAddr.new("190.93.240.0/20"),
-    IPAddr.new("188.114.96.0/20"),
-    IPAddr.new("197.234.240.0/22"),
-    IPAddr.new("198.41.128.0/17"),
-    IPAddr.new("162.158.0.0/15"),
-    IPAddr.new("104.16.0.0/13"),
-    IPAddr.new("104.24.0.0/14"),
-    IPAddr.new("172.64.0.0/13"),
-    IPAddr.new("131.0.72.0/22"),
-  ]
+  # The cloudflare-rails gem automatically fetches and updates Cloudflare IP ranges
+  # (both IPv4 and IPv6) from https://www.cloudflare.com/ips/
+  # No manual configuration needed - the gem handles trusted_proxies automatically.
 end

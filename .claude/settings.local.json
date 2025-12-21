@@ -17,7 +17,9 @@
       "Bash(mise settings:*)",
       "Bash(mise env:*)",
       "Bash(mise exec:*)",
-      "Bash(mise run:*)"
+      "Bash(mise run:*)",
+      "Bash(chmod:*)",
+      "Bash(bundle install:*)"
     ]
   }
 }
