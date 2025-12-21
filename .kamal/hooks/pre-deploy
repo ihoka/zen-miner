@@ -22,14 +22,14 @@ CONFIG_FILE="config/deploy.yml"
 
 if grep -q "example\.com" "$CONFIG_FILE"; then
   echo "ERROR: Placeholder domains found in $CONFIG_FILE"
-  echo "Please replace 'zencash.ro' with your actual domain before deploying."
+  echo "Please replace 'example.com' with your actual domain before deploying."
   grep "example\.com" "$CONFIG_FILE"
   exit 1
 fi
 
-if grep -q "ihoka" "$CONFIG_FILE"; then
+if grep -q "your-dockerhub-username" "$CONFIG_FILE"; then
   echo "ERROR: Placeholder Docker Hub username found in $CONFIG_FILE"
-  echo "Please replace 'ihoka' with your actual Docker Hub username."
+  echo "Please replace 'your-dockerhub-username' with your actual Docker Hub username."
   exit 1
 fi
 
