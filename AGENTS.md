@@ -1,178 +1,276 @@
 # AGENTS.md
+
 This file provides guidance to AI coding assistants working in this repository.
 
-**Note:** CLAUDE.md, .clinerules, .cursorrules, .windsurfrules, .replit.md, GEMINI.md, .github/copilot-instructions.md, and .idx/airules.md are symlinks to AGENTS.md in this project.
-
-# ZenCash Mining Rig
-
-A cryptocurrency mining configuration repository for Monero mining using XMRig. This is an operational/deployment configuration project, not a software development project.
+**Note:** CLAUDE.md, .clinerules, .cursorrules, .windsurfrules, .replit.md, GEMINI.md, .github/copilot-instructions.md, and .idx/airules.md are symlinks to AGENTS.md.
 
 ## Project Overview
 
-- **Purpose**: Configure and run Monero mining operations via XMRig
-- **Task Runner**: Mise (Rust-based task/environment manager)
-- **Mining Pool**: HashVault Pro (pool.hashvault.pro:443)
-- **Dependencies**: XMRig must be installed and available in PATH
+Zen Miner is an open source Rails 8.1 application for orchestrating cryptocurrency mining rigs. It provides a centralized web interface to manage multiple XMRig miners with real-time monitoring.
+
+| Attribute | Value |
+|-----------|-------|
+| **Framework** | Ruby on Rails 8.1.1 |
+| **Ruby Version** | 3.4.5 |
+| **Database** | SQLite3 |
+| **Frontend** | Hotwire (Turbo + Stimulus) |
+| **Asset Pipeline** | Propshaft + Import Maps |
+| **Background Jobs** | Solid Queue |
+| **Caching** | Solid Cache |
+| **WebSockets** | Solid Cable |
+| **Deployment** | Kamal with Docker |
 
 ## Build & Commands
 
-This project uses [Mise](https://mise.jdx.dev/) for task management.
+### Development
 
-### Available Tasks
+```bash
+bin/dev                    # Start development server (Puma + assets)
+bin/rails server           # Start Rails server only
+bin/rails console          # Interactive Rails console
+bin/rails test             # Run unit/integration tests
+bin/rails test:system      # Run system tests (Capybara + Selenium)
+```
 
-| Command | Description |
-|---------|-------------|
-| `mise run mine` | Start CPU mining (default) |
-| `mise run mine:cpu` | Start CPU-only mining |
-| `mise run mine:gpu` | Start GPU-only mining (OpenCL/CUDA) |
-| `mise run mine:hybrid` | Start hybrid CPU+GPU mining |
+### Code Quality
 
-### Mining Task Details
+```bash
+bin/rubocop                # Run RuboCop linter
+bin/rubocop -A             # Auto-fix RuboCop issues
+bin/brakeman               # Security vulnerability scan
+bundle exec bundler-audit  # Gem vulnerability check
+```
 
-All mining tasks use XMRig JSON configuration files from the `configs/` directory:
-- Pool: `pool.hashvault.pro:443`
-- TLS: Enabled with fingerprint verification
-- Donate level: 1%
+### Deployment (Kamal)
 
-### Configuration Profiles
+```bash
+bin/kamal setup            # Bootstrap new server
+bin/kamal deploy           # Deploy latest code
+bin/kamal rollback         # Rollback to previous version
+bin/kamal logs             # View container logs
+bin/kamal console          # Access Rails console in production
+bin/kamal shell            # SSH into container
+```
 
-| Config | File | Use Case |
-|--------|------|----------|
-| CPU | `configs/cpu.json` | Standard CPU mining |
-| GPU | `configs/gpu.json` | GPU mining via OpenCL/CUDA |
-| Hybrid | `configs/hybrid.json` | Combined CPU+GPU mining |
+### Database
 
-### Prerequisites
+```bash
+bin/rails db:migrate       # Run pending migrations
+bin/rails db:seed          # Load seed data
+bin/rails db:reset         # Drop, create, migrate, seed
+```
 
-1. **Install Mise**: Follow [Mise installation guide](https://mise.jdx.dev/getting-started.html)
-2. **Install XMRig**: Ensure `xmrig` binary is available in PATH
-3. **Verify configuration**: Check `mise.toml` for current settings
+## Directory Structure
 
-## Configuration
-
-### Environment Variables
-
-The following environment variable is configured in `mise.toml`:
-
-| Variable | Description |
-|----------|-------------|
-| `MONERO_WALLET` | Destination wallet address for mining rewards |
-
-### Configuration Files
-
-| File | Purpose |
-|------|---------|
-| `mise.toml` | Task definitions and environment variables |
-| `configs/cpu.json` | XMRig CPU mining configuration |
-| `configs/gpu.json` | XMRig GPU mining configuration |
-| `configs/hybrid.json` | XMRig hybrid CPU+GPU configuration |
-| `.claude/settings.local.json` | Claude Code local settings (not committed) |
+```
+zen-miner/
+├── app/
+│   ├── controllers/       # Request handlers
+│   ├── models/            # ActiveRecord models
+│   ├── views/             # ERB templates
+│   ├── javascript/        # Stimulus controllers
+│   │   └── controllers/   # JS controller files
+│   ├── jobs/              # Solid Queue background jobs
+│   ├── helpers/           # View helpers
+│   └── assets/            # CSS and images
+├── config/
+│   ├── deploy.yml         # Kamal deployment configuration
+│   ├── database.yml       # Database settings
+│   ├── routes.rb          # URL routing
+│   ├── queue.yml          # Solid Queue configuration
+│   ├── cache.yml          # Solid Cache configuration
+│   ├── cable.yml          # Action Cable configuration
+│   └── recurring.yml      # Scheduled job definitions
+├── configs/               # XMRig mining configurations
+│   ├── cpu.json           # CPU mining config
+│   ├── gpu.json           # GPU mining config
+│   └── hybrid.json        # Hybrid CPU+GPU config
+├── db/
+│   ├── migrate/           # Database migrations
+│   ├── schema.rb          # Current schema
+│   └── seeds.rb           # Seed data
+├── specs/                 # Feature specification documents
+├── test/                  # Test suite
+│   ├── models/            # Model tests
+│   ├── controllers/       # Controller tests
+│   ├── system/            # System/integration tests
+│   └── fixtures/          # Test fixtures
+├── .github/workflows/     # GitHub Actions CI/CD
+├── .kamal/                # Kamal hooks and secrets
+├── Dockerfile             # Production container build
+└── Gemfile                # Ruby dependencies
+```
 
 ## Code Style
 
-- **Configuration format**: TOML for Mise configuration
-- **Documentation**: Markdown format
-- **Repository structure**: Minimal, focused on operational configuration
+### Ruby
 
-## Security
+- Follow [Rails Omakase](https://github.com/rails/rubocop-rails-omakase) style
+- Run `bin/rubocop` before committing
+- Use `bin/rubocop -A` to auto-fix issues
 
-### Sensitive Data Handling
+### Key Conventions
 
-- **Wallet addresses**: Stored in `mise.toml` - review before committing changes
-- **Pool fingerprints**: TLS fingerprint verification is enabled for secure connections
-- **No secrets in code**: Avoid committing private keys or sensitive credentials
+- **Models**: Use ActiveRecord conventions, add validations and associations
+- **Controllers**: Keep thin, delegate to models/services
+- **Views**: Use ERB templates with Turbo Frames for dynamic updates
+- **JavaScript**: Stimulus controllers only, no jQuery or vanilla JS sprawl
+- **Jobs**: Inherit from `ApplicationJob`, use Solid Queue
 
-### Best Practices
+### Naming
 
-- Review changes to `mise.toml` carefully before committing
-- Verify pool TLS fingerprints from official sources
-- Keep XMRig updated to the latest stable version
-
-## Directory Structure & File Organization
-
-```
-xmrig/
-├── AGENTS.md           # AI assistant guidance (this file)
-├── CLAUDE.md           # Symlink to AGENTS.md
-├── README.md           # Project documentation
-├── mise.toml           # Mise task configuration
-├── configs/            # XMRig configuration files
-│   ├── cpu.json        # CPU mining config
-│   ├── gpu.json        # GPU mining config
-│   └── hybrid.json     # Hybrid CPU+GPU config
-├── reports/            # Project reports and documentation
-│   └── README.md       # Reports directory guide
-├── .github/
-│   └── copilot-instructions.md  # Symlink to AGENTS.md
-├── .idx/
-│   └── airules.md      # Symlink to AGENTS.md
-└── .claude/
-    └── settings.local.json  # Local Claude settings (gitignored)
-```
-
-### Reports Directory
-
-ALL project reports and documentation should be saved to the `reports/` directory:
-
-**Report Types:**
-- Configuration changes: `CONFIG_CHANGE_[DATE].md`
-- Performance logs: `MINING_PERFORMANCE_[DATE].md`
-- Setup documentation: `SETUP_GUIDE_[TOPIC].md`
-
-### Temporary Files & Debugging
-
-For any temporary files or debugging:
-- Create a `/temp` folder (gitignored)
-- Use for logs, test outputs, debugging scripts
-- Clean up regularly
-
-### Example `.gitignore` patterns
-
-```
-# Temporary files
-/temp/
-temp/
-*.log
-
-# Claude settings (local only)
-.claude/settings.local.json
-
-# Don't ignore reports
-!reports/
-!reports/**
-```
+| Type | Convention | Example |
+|------|------------|---------|
+| Models | Singular, PascalCase | `MiningRig` |
+| Controllers | Plural, PascalCase | `MiningRigsController` |
+| Database tables | Plural, snake_case | `mining_rigs` |
+| Routes | RESTful, plural | `/mining_rigs/:id` |
+| Stimulus controllers | Kebab-case | `mining-status_controller.js` |
 
 ## Testing
 
-This is a configuration repository without automated tests. Validation is done through:
+### Test Framework
 
-1. **Syntax validation**: Ensure `mise.toml` has valid TOML syntax and `configs/*.json` files have valid JSON
-2. **Dry run**: Review XMRig output before extended mining sessions
-3. **Pool connectivity**: Verify connection to mining pool
+- **Rails Test Unit** for unit/integration tests
+- **Capybara + Selenium** for system tests
+- **Fixtures** for test data
 
-## Agent Delegation & Tool Execution
+### Running Tests
 
-### Available Agents
+```bash
+bin/rails test                        # All unit/integration tests
+bin/rails test test/models/           # Model tests only
+bin/rails test:system                 # System tests (browser)
+bin/rails test test/models/mining_rig_test.rb:15  # Specific line
+```
 
-For this repository, the following agents are most relevant:
+### Test Conventions
+
+- One assertion per test when possible
+- Use fixtures over factories
+- System tests for critical user flows
+- Name tests descriptively: `test "mining rig validates presence of name"`
+
+## Security
+
+### Sensitive Data
+
+- **Never commit**: Wallet addresses, API keys, credentials
+- **Use Rails credentials**: `bin/rails credentials:edit`
+- **Environment variables**: For deployment configuration
+- **Secrets management**: 1Password/Bitwarden integration via `.kamal/secrets`
+
+### Security Scanning
+
+- **Brakeman**: Runs on every PR via GitHub Actions
+- **Bundler Audit**: Checks gem vulnerabilities
+- **Importmap Audit**: Checks JavaScript dependencies
+
+## Deployment Architecture
+
+### Production Setup
+
+- **Servers**: Multi-server deployment (configured in `config/deploy.yml`)
+- **Proxy**: Cloudflare for SSL termination and CDN
+- **Container**: Docker with multi-stage build
+- **Storage**: Persistent Docker volumes for SQLite databases
+- **Health Check**: `/up` endpoint for load balancer
+
+### Database Strategy
+
+SQLite with multiple databases:
+- `production.sqlite3` - Application data
+- `production_cache.sqlite3` - Solid Cache
+- `production_queue.sqlite3` - Solid Queue
+- `production_cable.sqlite3` - Action Cable
+
+### CI/CD Pipeline
+
+GitHub Actions workflow (`.github/workflows/ci.yml`):
+1. **scan_ruby**: Brakeman + Bundler Audit
+2. **scan_js**: Importmap audit
+3. **lint**: RuboCop
+4. **test**: Rails tests
+5. **system-test**: Browser tests
+
+## Agent Delegation
+
+### Recommended Agents
 
 | Agent | Use Case |
 |-------|----------|
-| `devops-expert` | Infrastructure and deployment questions |
-| `documentation-expert` | Documentation improvements |
-| `git-expert` | Version control operations |
+| `rails-expert` | Rails patterns, ActiveRecord, routing |
+| `devops-expert` | Kamal deployment, Docker, infrastructure |
+| `testing-expert` | Test structure, coverage, debugging |
+| `git-expert` | Version control, branching, PRs |
+| `documentation-expert` | README, guides, inline docs |
+| `typescript-expert` | Stimulus controllers (if TypeScript added) |
 
 ### Key Principles
 
-- **Minimal changes**: This is a configuration repo - avoid unnecessary modifications
-- **Security focus**: Review all changes involving wallet addresses or pool settings
-- **Documentation**: Update README.md when configuration changes
+1. **Rails conventions**: Follow Rails Way, don't fight the framework
+2. **Minimal changes**: Make focused changes, avoid scope creep
+3. **Test coverage**: Add tests for new functionality
+4. **Security first**: Review changes affecting auth, payments, or credentials
+5. **Performance**: Consider N+1 queries, use `includes` for associations
 
-### Parallel Tool Execution
+### Parallel Execution
 
-When performing multiple operations, execute them in parallel when possible:
+Execute in parallel when possible:
 - Multiple file reads
-- Independent searches
-- Non-dependent validations
+- Independent search operations
+- Non-dependent test runs
 
-**Sequential only when:** One operation's output is required for the next operation's input.
+Sequential only when:
+- Migration depends on previous migration
+- Test setup required before test run
+- Deploy depends on test passing
+
+## Common Tasks
+
+### Adding a New Model
+
+```bash
+bin/rails generate model MiningRig name:string status:integer ip_address:string
+bin/rails db:migrate
+```
+
+### Adding a Stimulus Controller
+
+```bash
+bin/rails generate stimulus mining_status
+```
+
+Creates `app/javascript/controllers/mining_status_controller.js`
+
+### Adding a Background Job
+
+```bash
+bin/rails generate job UpdateMiningStats
+```
+
+Creates `app/jobs/update_mining_stats_job.rb`
+
+### Creating a Migration
+
+```bash
+bin/rails generate migration AddHashrateToMiningRigs hashrate:decimal
+bin/rails db:migrate
+```
+
+## Troubleshooting
+
+### Common Issues
+
+| Issue | Solution |
+|-------|----------|
+| Assets not loading | Run `bin/rails assets:precompile` |
+| Database locked | Check for zombie processes, restart server |
+| Kamal deploy fails | Check `bin/kamal logs` and `.kamal/secrets` |
+| Tests failing in CI | Ensure fixtures are consistent |
+
+### Logs
+
+- Development: `log/development.log`
+- Test: `log/test.log`
+- Production: `bin/kamal logs`
