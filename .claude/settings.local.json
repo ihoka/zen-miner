@@ -24,7 +24,8 @@
       "Bash(then echo \"RAILS_MASTER_KEY exists\")",
       "Bash(else echo \"RAILS_MASTER_KEY does NOT exist - needs to be generated\")",
       "Bash(fi)",
-      "Bash(EDITOR=\"echo ''# Production secrets''\" bin/rails credentials:edit --environment production)"
+      "Bash(EDITOR=\"echo ''# Production secrets''\" bin/rails credentials:edit --environment production)",
+      "Bash(kamal lock:*)"
     ]
   }
 }
