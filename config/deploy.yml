@@ -9,22 +9,25 @@ image: your-dockerhub-username/zen_miner
 # TODO: Replace with actual server hostnames or IPs
 servers:
   web:
-    - server1.example.com
-    - server2.example.com
-    - server3.example.com
-    - server4.example.com
-    - server5.example.com
-    - server6.example.com
+    - mini-1
+    - miner-beta
+    - miner-gamma
+    - miner-delta
+
+# SSH configuration - use 'deploy' user instead of root
+ssh:
+  user: deploy
 
 # Cloudflare proxy configuration.
-# SSL is enabled on origin - set Cloudflare SSL/TLS mode to "Full (strict)" in your dashboard.
-# kamal-proxy will auto-provision Let's Encrypt certificates.
+# Cloudflare handles SSL termination, so ssl: false here.
+# Set Cloudflare SSL/TLS mode to "Full" in your dashboard.
+# Connection: Browser --[HTTPS]--> Cloudflare --[HTTP]--> Servers
 #
 # Requires config.assume_ssl = true and config.force_ssl = true in production.rb
 #
 # TODO: Replace with your production domain
 proxy:
-  ssl: true
+  ssl: false
   host: app.example.com
   healthcheck:
     path: /up

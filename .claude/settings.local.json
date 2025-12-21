@@ -19,7 +19,12 @@
       "Bash(mise exec:*)",
       "Bash(mise run:*)",
       "Bash(chmod:*)",
-      "Bash(bundle install:*)"
+      "Bash(bundle install:*)",
+      "Bash(if [ -f config/master.key ])",
+      "Bash(then echo \"RAILS_MASTER_KEY exists\")",
+      "Bash(else echo \"RAILS_MASTER_KEY does NOT exist - needs to be generated\")",
+      "Bash(fi)",
+      "Bash(EDITOR=\"echo ''# Production secrets''\" bin/rails credentials:edit --environment production)"
     ]
   }
 }
