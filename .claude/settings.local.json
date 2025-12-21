@@ -7,7 +7,17 @@
       "Bash(git add:*)",
       "Bash(git commit:*)",
       "Bash(git push:*)",
-      "Bash(gh pr create:*)"
+      "Bash(gh pr create:*)",
+      "Skill(code-review)",
+      "Bash(cat:*)",
+      "Bash(git -C /Users/ihoka/ihoka/zen-miner log --oneline -20)",
+      "Bash(mise doctor:*)",
+      "Bash(zsh:*)",
+      "Bash(~/.local/share/mise/installs/ruby/3.4.5/bin/ruby:*)",
+      "Bash(mise settings:*)",
+      "Bash(mise env:*)",
+      "Bash(mise exec:*)",
+      "Bash(mise run:*)"
     ]
   }
 }
