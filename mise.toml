@@ -10,6 +10,6 @@ WORKER_ID = "MacBookPro"
 
 [tasks."mine:cpu"]
 run = [
-    "{{env.XMRIG_PATH}}/xmrig -o {{env.POOL_URL}} -u {{env.MONERO_WALLET}} -p {{env.WORKER_ID}}",
+    "{{env.XMRIG_PATH}}/xmrig -c configs/cpu.json",
 ]
-description = "Start CPU-only mining"
+description = "Start CPU-only mining (throttled)"
