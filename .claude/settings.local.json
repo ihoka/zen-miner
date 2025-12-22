@@ -43,7 +43,10 @@
       "Bash(kamal app:*)",
       "WebSearch",
       "Bash(ssh:*)",
-      "Bash(RAILS_ENV=test bin/rails db:migrate:*)"
+      "Bash(RAILS_ENV=test bin/rails db:migrate:*)",
+      "Skill(git:commit)",
+      "Skill(git:checkout)",
+      "Skill(git:push)"
     ]
   }
 }
