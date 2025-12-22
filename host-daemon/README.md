@@ -112,6 +112,58 @@ sudo journalctl -u xmrig -f
 curl http://127.0.0.1:8080/2/summary | jq
 ```
 
+## Updating the Orchestrator Daemon
+
+When code changes are made to the orchestrator daemon, it must be manually updated on all hosts since it runs outside the Docker container.
+
+### Automated Update (Recommended)
+
+From your local machine:
+```bash
+# Update all hosts at once
+bin/update-orchestrators
+```
+
+This script will:
+1. Detect xmrig binary location and create symlinks if needed
+2. Copy the latest orchestrator code to each host
+3. Restart the orchestrator service
+4. Verify successful restart
+
+### Manual Update (Single Host)
+
+If you need to update a specific host:
+
+```bash
+# Via kamal
+kamal app exec --hosts mini-1 'bash /rails/host-daemon/update-orchestrator.sh'
+
+# Or via SSH
+ssh deploy@mini-1 'sudo bash /path/to/update-orchestrator.sh'
+```
+
+### When to Update
+
+Update the orchestrator daemon when:
+- Database schema changes affect `xmrig_commands` or `xmrig_processes` tables
+- Orchestrator code logic changes (polling, health checks, command processing)
+- systemd service configuration changes
+- After seeing "no such column" or other SQLite errors in orchestrator logs
+
+### Verification
+
+After updating, verify the orchestrator is running correctly:
+```bash
+# Check service status
+kamal app exec --hosts mini-1 'systemctl status xmrig-orchestrator'
+
+# Check recent logs
+kamal app exec --hosts mini-1 'journalctl -u xmrig-orchestrator -n 50'
+
+# Verify no errors
+kamal app exec --hosts mini-1 'grep -i error /var/log/xmrig/orchestrator.log | tail -20'
+```
+
 ## Health Monitoring
 
 The orchestrator daemon monitors XMRig health every 10 seconds via HTTP API:

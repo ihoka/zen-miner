@@ -102,6 +102,17 @@ if ! command -v xmrig &> /dev/null; then
 fi
 echo "   ✓ XMRig found: $(xmrig --version | head -n1)"
 
+# Detect xmrig installation path and create symlink if needed
+XMRIG_BINARY=$(which xmrig)
+echo "   ✓ XMRig found at: $XMRIG_BINARY"
+
+# Create symlink if xmrig is not in expected location
+if [ "$XMRIG_BINARY" != "/usr/local/bin/xmrig" ]; then
+  echo "   Creating symlink to standard location..."
+  sudo ln -sf "$XMRIG_BINARY" /usr/local/bin/xmrig
+  echo "   ✓ Symlink created: /usr/local/bin/xmrig -> $XMRIG_BINARY"
+fi
+
 # Install remaining dependencies
 echo "[2/8] Installing system dependencies..."
 if command -v pacman &> /dev/null; then
