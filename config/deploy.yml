@@ -38,6 +38,8 @@ proxy:
   healthcheck:
     path: /up
     interval: 3
+    timeout: 60  # Increased from 30s default
+    max_attempts: 20  # More attempts before giving up
 
 # Container registry - Docker Hub.
 # Credentials are fetched from 1Password/Bitwarden via .kamal/secrets
@@ -65,6 +67,10 @@ env:
 
     # Production log level
     RAILS_LOG_LEVEL: info
+
+    # TEMPORARY: Skip database checks during health check (for initial deployment)
+    # Remove this after migrations are run
+    HEALTH_CHECK_SKIP_DB: "true"
 
 # Kamal aliases for common operations.
 aliases:
