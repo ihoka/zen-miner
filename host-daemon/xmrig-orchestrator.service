@@ -5,7 +5,7 @@ Requires=docker.target
 
 [Service]
 Type=simple
-User=root
+User=xmrig-orchestrator
 ExecStart=/usr/local/bin/xmrig-orchestrator
 Restart=always
 RestartSec=10s

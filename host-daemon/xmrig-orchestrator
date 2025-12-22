@@ -10,6 +10,7 @@ require "net/http"
 require "socket"
 require "logger"
 require "time"
+require "open3"
 
 class XmrigOrchestrator
   POLL_INTERVAL = 10 # seconds
@@ -17,12 +18,24 @@ class XmrigOrchestrator
   LOG_PATH = ENV.fetch("XMRIG_LOG_PATH", "/var/log/xmrig/orchestrator.log")
   XMRIG_API_URL = ENV.fetch("XMRIG_API_URL", "http://127.0.0.1:8080/2/summary")
 
+  # Allowed columns for update_process_status (SQL injection protection)
+  ALLOWED_PROCESS_COLUMNS = %w[
+    status pid hostname worker_id started_at stopped_at error_count
+    last_error last_health_check_at restart_count hashrate
+    accepted_shares rejected_shares health_data
+  ].freeze
+
   def initialize
     @hostname = Socket.gethostname
     @logger = Logger.new(LOG_PATH, 7, "daily") # 7 day retention, daily rotation
     @logger.level = Logger::INFO
     @db = SQLite3::Database.new(DB_PATH)
     @db.results_as_hash = true
+
+    # Enable WAL mode for better concurrency with Rails app
+    @db.execute("PRAGMA journal_mode=WAL")
+    @db.execute("PRAGMA synchronous=NORMAL")
+    @db.execute("PRAGMA busy_timeout=5000")
   end
 
   def run
@@ -46,10 +59,23 @@ class XmrigOrchestrator
   private
 
   def process_pending_commands
-    commands = @db.execute(
-      "SELECT * FROM xmrig_commands WHERE hostname = ? AND status = 'pending' ORDER BY created_at ASC",
-      [@hostname]
-    )
+    # Fetch and mark commands as processing within a transaction to prevent race conditions
+    commands = @db.transaction do
+      pending = @db.execute(
+        "SELECT * FROM xmrig_commands WHERE hostname = ? AND status = 'pending' ORDER BY created_at ASC",
+        [@hostname]
+      )
+
+      # Mark all pending commands as processing atomically
+      pending.each do |cmd|
+        @db.execute(
+          "UPDATE xmrig_commands SET status = 'processing', processed_at = ? WHERE id = ?",
+          [Time.now.utc.iso8601, cmd["id"]]
+        )
+      end
+
+      pending
+    end
 
     commands.each do |cmd|
       process_command(cmd)
@@ -59,12 +85,7 @@ class XmrigOrchestrator
   def process_command(cmd)
     @logger.info "Processing command: #{cmd['action']} (ID: #{cmd['id']})"
 
-    # Mark as processing
-    @db.execute(
-      "UPDATE xmrig_commands SET status = 'processing', processed_at = ? WHERE id = ?",
-      [Time.now.utc.iso8601, cmd["id"]]
-    )
-
+    # Command is already marked as processing by process_pending_commands transaction
     result = case cmd["action"]
     when "start"
       systemctl("start")
@@ -98,7 +119,18 @@ class XmrigOrchestrator
   end
 
   def systemctl(action)
-    output = `systemctl #{action} xmrig 2>&1`
+    # Use array form to avoid shell injection (subprocess will exec directly)
+    # Using sudo with NOPASSWD configuration for specific systemctl commands
+    stdout, stderr, status = Open3.capture3('sudo', 'systemctl', action, 'xmrig')
+    output = stdout + stderr
+
+    # Set $? for compatibility with existing code that checks $?.success?
+    # This is a workaround since Open3 doesn't set $? directly
+    unless status.success?
+      # Signal failure by creating a failed Process::Status
+      system('false')
+    end
+
     output
   end
 
@@ -122,7 +154,8 @@ class XmrigOrchestrator
       end
     else
       # XMRig not responding
-      status_output = `systemctl is-active xmrig`.strip
+      status_output, _stderr, _status = Open3.capture3('sudo', 'systemctl', 'is-active', 'xmrig')
+      status_output = status_output.strip
 
       if status_output == "active"
         update_process_status(status: "unhealthy")
@@ -137,12 +170,19 @@ class XmrigOrchestrator
 
   def fetch_xmrig_health
     uri = URI(XMRIG_API_URL)
-    response = Net::HTTP.get_response(uri)
+
+    # Set timeouts to prevent hanging on unresponsive API
+    response = Net::HTTP.start(uri.host, uri.port,
+                                open_timeout: 5,
+                                read_timeout: 5,
+                                write_timeout: 5) do |http|
+      http.get(uri.path.empty? ? '/' : uri.path)
+    end
 
     return nil unless response.is_a?(Net::HTTPSuccess)
 
     JSON.parse(response.body)
-  rescue Errno::ECONNREFUSED, SocketError, JSON::ParserError => e
+  rescue Errno::ECONNREFUSED, SocketError, JSON::ParserError, Net::OpenTimeout, Net::ReadTimeout => e
     @logger.debug "XMRig API not accessible: #{e.class}"
     nil
   end
@@ -152,26 +192,34 @@ class XmrigOrchestrator
     attrs[:worker_id] ||= "#{@hostname}-production"
     attrs[:last_health_check_at] = Time.now.utc.iso8601
 
+    # Filter to only allowed columns (SQL injection protection)
+    safe_attrs = attrs.select { |k, _| ALLOWED_PROCESS_COLUMNS.include?(k.to_s) }
+
+    if safe_attrs.empty?
+      @logger.warn "No valid columns to update in update_process_status"
+      return
+    end
+
     existing = @db.execute(
       "SELECT id FROM xmrig_processes WHERE hostname = ?",
       [@hostname]
     ).first
 
     if existing
-      set_clause = attrs.map { |k, _| "#{k} = ?" }.join(", ")
-      values = attrs.values + [Time.now.utc.iso8601, existing["id"]]
+      set_clause = safe_attrs.map { |k, _| "#{k} = ?" }.join(", ")
+      values = safe_attrs.values + [Time.now.utc.iso8601, existing["id"]]
 
       @db.execute(
         "UPDATE xmrig_processes SET #{set_clause}, updated_at = ? WHERE id = ?",
         values
       )
     else
-      columns = attrs.keys.join(", ")
-      placeholders = (["?"] * attrs.size).join(", ")
+      columns = safe_attrs.keys.join(", ")
+      placeholders = (["?"] * safe_attrs.size).join(", ")
 
       @db.execute(
         "INSERT INTO xmrig_processes (#{columns}, created_at, updated_at) VALUES (#{placeholders}, ?, ?)",
-        attrs.values + [Time.now.utc.iso8601, Time.now.utc.iso8601]
+        safe_attrs.values + [Time.now.utc.iso8601, Time.now.utc.iso8601]
       )
     end
   end
