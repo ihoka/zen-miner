@@ -62,6 +62,13 @@ if ! command -v ruby &> /dev/null; then
 fi
 echo "   ✓ Ruby found: $(ruby --version)"
 
+# Check if bundler is installed
+if ! ruby -e "require 'bundler/inline'" &> /dev/null; then
+  echo "   Installing bundler..."
+  gem install bundler --no-document
+fi
+echo "   ✓ Bundler available"
+
 if ! command -v xmrig &> /dev/null; then
   echo "ERROR: XMRig not found in PATH"
   echo "Please install XMRig before running this script"
