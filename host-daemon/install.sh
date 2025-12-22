@@ -71,8 +71,17 @@ echo "   ✓ XMRig found: $(xmrig --version | head -n1)"
 
 # Install remaining dependencies
 echo "[2/8] Installing system dependencies..."
-apt-get update -qq
-apt-get install -y sqlite3 sudo
+if command -v pacman &> /dev/null; then
+  # Arch Linux
+  pacman -S --noconfirm --needed sqlite sudo
+elif command -v apt-get &> /dev/null; then
+  # Debian/Ubuntu
+  apt-get update -qq
+  apt-get install -y sqlite3 sudo
+else
+  echo "ERROR: Unsupported package manager. Please install sqlite3 and sudo manually."
+  exit 1
+fi
 
 # Create xmrig user
 echo "[3/8] Creating xmrig system user..."
