@@ -62,12 +62,14 @@ if ! command -v ruby &> /dev/null; then
 fi
 echo "   ✓ Ruby found: $(ruby --version)"
 
-# Check if bundler is installed
-if ! ruby -e "require 'bundler/inline'" &> /dev/null; then
+# Install bundler system-wide (required for bundler/inline in daemon)
+if ! gem list -i bundler >/dev/null 2>&1; then
   echo "   Installing bundler..."
   gem install bundler --no-document
+else
+  echo "   ✓ Bundler already installed"
 fi
-echo "   ✓ Bundler available"
+echo "   ✓ Bundler available for all users"
 
 if ! command -v xmrig &> /dev/null; then
   echo "ERROR: XMRig not found in PATH"
