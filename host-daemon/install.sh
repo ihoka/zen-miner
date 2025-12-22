@@ -171,36 +171,49 @@ else
   echo "   ✓ Group 'deploy' already exists"
 fi
 
-# Set ownership to match Rails container user (uid=1000) with deploy group
+# Detect the current owner of the rails-storage directory (if it exists and has content)
+# This handles cases where the Rails container might use a different UID than 1000
+RAILS_STORAGE_OWNER="1000"
+if [ -f /mnt/rails-storage/production.sqlite3 ]; then
+  # Get the owner from the database file (most reliable)
+  EXISTING_OWNER=$(stat -c '%u' /mnt/rails-storage/production.sqlite3 2>/dev/null || stat -f '%u' /mnt/rails-storage/production.sqlite3 2>/dev/null || echo "1000")
+  RAILS_STORAGE_OWNER="$EXISTING_OWNER"
+  echo "   ✓ Detected Rails storage owner from database: $RAILS_STORAGE_OWNER"
+elif [ -d /mnt/rails-storage ] && [ "$(ls -A /mnt/rails-storage)" ]; then
+  # Fallback: get owner of the directory
+  EXISTING_OWNER=$(stat -c '%u' /mnt/rails-storage 2>/dev/null || stat -f '%u' /mnt/rails-storage 2>/dev/null || echo "1000")
+  RAILS_STORAGE_OWNER="$EXISTING_OWNER"
+  echo "   ✓ Detected Rails storage owner from directory: $RAILS_STORAGE_OWNER"
+fi
+
+# Set ownership to match Rails container user with deploy group
 # This allows both the Rails container and the orchestrator (in deploy group) to access
-sudo chown 1000:deploy /mnt/rails-storage
+sudo chown ${RAILS_STORAGE_OWNER}:deploy /mnt/rails-storage
 sudo chmod 775 /mnt/rails-storage
 
 # Add xmrig-orchestrator to deploy group for database read/write access
 sudo usermod -a -G deploy xmrig-orchestrator
 
-# Fix database file permissions if it exists
-if [ -f /mnt/rails-storage/production.sqlite3 ]; then
-  echo "   ✓ Found existing database, fixing permissions..."
-  sudo chown 1000:deploy /mnt/rails-storage/production.sqlite3
-  sudo chmod 664 /mnt/rails-storage/production.sqlite3
+# Fix database file permissions for all SQLite databases
+if [ -d /mnt/rails-storage ] && [ "$(ls -A /mnt/rails-storage/*.sqlite3 2>/dev/null)" ]; then
+  echo "   ✓ Found existing databases, fixing permissions..."
 
-  # Fix WAL/SHM files if they exist (SQLite Write-Ahead Log files)
-  if [ -f /mnt/rails-storage/production.sqlite3-wal ]; then
-    sudo chown 1000:deploy /mnt/rails-storage/production.sqlite3-wal
-    sudo chmod 664 /mnt/rails-storage/production.sqlite3-wal
-  fi
-  if [ -f /mnt/rails-storage/production.sqlite3-shm ]; then
-    sudo chown 1000:deploy /mnt/rails-storage/production.sqlite3-shm
-    sudo chmod 664 /mnt/rails-storage/production.sqlite3-shm
-  fi
-  echo "     - Database file permissions updated"
+  # Fix all SQLite database files and their WAL/SHM files
+  for db_file in /mnt/rails-storage/*.sqlite3*; do
+    if [ -f "$db_file" ]; then
+      sudo chown ${RAILS_STORAGE_OWNER}:deploy "$db_file"
+      sudo chmod 664 "$db_file"
+      echo "     - Fixed: $(basename "$db_file")"
+    fi
+  done
+
+  echo "     - All database file permissions updated"
 else
-  echo "   ℹ Database not yet created (will be created by Rails on first deploy)"
+  echo "   ℹ No databases found yet (will be created by Rails on first deploy)"
 fi
 
 echo "   ✓ Rails storage directory configured (/mnt/rails-storage)"
-echo "     - Owner: 1000:deploy (Rails container user)"
+echo "     - Owner: ${RAILS_STORAGE_OWNER}:deploy (Rails container user)"
 echo "     - Permissions: 775 (group writable)"
 echo "     - xmrig-orchestrator user added to deploy group"
 
@@ -272,6 +285,25 @@ sudo systemctl daemon-reload
 # Enable services (but don't start yet)
 sudo systemctl enable xmrig
 sudo systemctl enable xmrig-orchestrator
+
+# If orchestrator is already running, restart it to pick up changes
+if sudo systemctl is-active --quiet xmrig-orchestrator; then
+  echo ""
+  echo "[9/8] Restarting orchestrator to apply updates..."
+  sudo systemctl restart xmrig-orchestrator
+  echo "   ✓ Orchestrator restarted"
+
+  # Give it a moment to start
+  sleep 2
+
+  # Check status
+  if sudo systemctl is-active --quiet xmrig-orchestrator; then
+    echo "   ✓ Orchestrator is running"
+  else
+    echo "   ⚠ Warning: Orchestrator failed to start. Check logs:"
+    echo "     sudo journalctl -u xmrig-orchestrator -n 50"
+  fi
+fi
 
 echo ""
 echo "=========================================="
