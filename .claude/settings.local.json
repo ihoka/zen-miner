@@ -35,7 +35,8 @@
       "Bash(bash -n:*)",
       "Bash(ls:*)",
       "Bash(bundle list:*)",
-      "Bash(gh pr comment:*)"
+      "Bash(gh pr comment:*)",
+      "Bash(RAILS_MASTER_KEY=4dfcd12e99cf1a803d07323f807e7dad bin/rails runner:*)"
     ]
   }
 }
