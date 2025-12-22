@@ -128,9 +128,12 @@ echo "[4/8] Creating directories..."
 mkdir -p /var/log/xmrig
 mkdir -p /etc/xmrig
 mkdir -p /mnt/rails-storage
+mkdir -p /var/lib/xmrig-orchestrator/gems
 chown xmrig:xmrig /var/log/xmrig
 # Allow orchestrator user to write logs
 chown xmrig-orchestrator:xmrig-orchestrator /var/log/xmrig/orchestrator.log 2>/dev/null || touch /var/log/xmrig/orchestrator.log && chown xmrig-orchestrator:xmrig-orchestrator /var/log/xmrig/orchestrator.log
+# Give orchestrator ownership of its gem directory
+chown -R xmrig-orchestrator:xmrig-orchestrator /var/lib/xmrig-orchestrator
 # Give orchestrator read/write access to database mount
 usermod -a -G $(stat -c '%G' /mnt/rails-storage 2>/dev/null || echo "root") xmrig-orchestrator 2>/dev/null || true
 echo "   ✓ Directories created"

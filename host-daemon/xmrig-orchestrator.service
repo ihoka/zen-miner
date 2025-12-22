@@ -10,6 +10,8 @@ ExecStart=/usr/local/bin/xmrig-orchestrator
 Restart=always
 RestartSec=10s
 Environment="XMRIG_DB_PATH=/mnt/rails-storage/production.sqlite3"
+Environment="GEM_HOME=/var/lib/xmrig-orchestrator/gems"
+Environment="GEM_PATH=/var/lib/xmrig-orchestrator/gems:/usr/lib/ruby/gems/3.4.0"
 StandardOutput=append:/var/log/xmrig/orchestrator.log
 StandardError=append:/var/log/xmrig/orchestrator.log
 
