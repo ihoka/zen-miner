@@ -73,10 +73,11 @@ aliases:
   logs: app logs -f
   dbc: app exec --interactive --reuse "bin/rails dbconsole"
 
-# Persistent storage for Active Storage uploads.
+# Persistent storage for Active Storage uploads and SQLite database.
+# Using bind mount so host daemon can access the database directly.
 # Note: With 6 servers, consider using S3/R2 for Active Storage instead of local volumes.
 volumes:
-  - "zen-miner_storage:/rails/storage"
+  - "/mnt/rails-storage:/rails/storage"
 
 # Bridge fingerprinted assets between deployments to avoid 404s.
 asset_path: /rails/public/assets

@@ -135,16 +135,36 @@ echo "   ✓ Sudo permissions configured"
 echo "[4/8] Creating directories..."
 mkdir -p /var/log/xmrig
 mkdir -p /etc/xmrig
-mkdir -p /mnt/rails-storage
 mkdir -p /var/lib/xmrig-orchestrator/gems
 chown xmrig:xmrig /var/log/xmrig
 # Allow orchestrator user to write logs
 chown xmrig-orchestrator:xmrig-orchestrator /var/log/xmrig/orchestrator.log 2>/dev/null || touch /var/log/xmrig/orchestrator.log && chown xmrig-orchestrator:xmrig-orchestrator /var/log/xmrig/orchestrator.log
 # Give orchestrator ownership of its gem directory
 chown -R xmrig-orchestrator:xmrig-orchestrator /var/lib/xmrig-orchestrator
-# Give orchestrator read/write access to database mount
-usermod -a -G $(stat -c '%G' /mnt/rails-storage 2>/dev/null || echo "root") xmrig-orchestrator 2>/dev/null || true
 echo "   ✓ Directories created"
+
+# Set up Rails storage directory for database access
+echo "[4b/8] Setting up Rails storage directory..."
+mkdir -p /mnt/rails-storage
+chmod 755 /mnt/rails-storage
+
+# Create deploy group (used by Kamal for Docker volume access)
+if ! getent group deploy >/dev/null; then
+  groupadd deploy
+  echo "   ✓ Created 'deploy' group"
+else
+  echo "   ✓ Group 'deploy' already exists"
+fi
+
+# Set ownership so both Docker (deploy user) and orchestrator can access
+chown deploy:deploy /mnt/rails-storage
+
+# Add xmrig-orchestrator to deploy group for database read access
+usermod -a -G deploy xmrig-orchestrator
+echo "   ✓ Rails storage directory configured (/mnt/rails-storage)"
+echo "     - Owner: deploy:deploy"
+echo "     - Permissions: 755"
+echo "     - xmrig-orchestrator user added to deploy group"
 
 # Generate XMRig config
 echo "[5/8] Generating XMRig configuration..."
@@ -221,16 +241,23 @@ echo "Installation Complete!"
 echo "=========================================="
 echo ""
 echo "Next steps:"
-echo "  1. Ensure Rails database is mounted at /mnt/rails-storage"
-echo "     (This should be handled by Kamal volumes config)"
 echo ""
-echo "  2. Start the orchestrator:"
+echo "  1. Deploy Rails application via Kamal (from local machine):"
+echo "     kamal deploy"
+echo ""
+echo "  2. Initialize database (first deploy only):"
+echo "     kamal app exec 'bin/rails db:migrate'"
+echo ""
+echo "  3. Start the orchestrator on this host:"
 echo "     sudo systemctl start xmrig-orchestrator"
 echo ""
-echo "  3. Check status:"
+echo "  4. Check orchestrator status:"
 echo "     sudo systemctl status xmrig-orchestrator"
 echo "     sudo journalctl -u xmrig-orchestrator -f"
 echo ""
-echo "  4. Issue start command from Rails:"
+echo "  5. Issue start command from Rails:"
 echo "     Xmrig::CommandService.start_mining('${WORKER_ID}')"
+echo ""
+echo "Database location: /mnt/rails-storage/production.sqlite3"
+echo "  (will be created by Rails on first deploy)"
 echo ""
