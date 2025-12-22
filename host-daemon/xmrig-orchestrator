@@ -33,7 +33,7 @@ class XmrigOrchestrator
 
   def initialize
     @hostname = Socket.gethostname
-    @logger = Logger.new(LOG_PATH, 7, "daily") # 7 day retention, daily rotation
+    @logger = Logger.new(LOG_PATH, "daily") # Daily rotation
     @logger.level = Logger::INFO
     @db = SQLite3::Database.new(DB_PATH)
     @db.results_as_hash = true

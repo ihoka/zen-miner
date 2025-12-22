@@ -176,8 +176,29 @@ fi
 sudo chown 1000:deploy /mnt/rails-storage
 sudo chmod 775 /mnt/rails-storage
 
-# Add xmrig-orchestrator to deploy group for database read access
+# Add xmrig-orchestrator to deploy group for database read/write access
 sudo usermod -a -G deploy xmrig-orchestrator
+
+# Fix database file permissions if it exists
+if [ -f /mnt/rails-storage/production.sqlite3 ]; then
+  echo "   ✓ Found existing database, fixing permissions..."
+  sudo chown 1000:deploy /mnt/rails-storage/production.sqlite3
+  sudo chmod 664 /mnt/rails-storage/production.sqlite3
+
+  # Fix WAL/SHM files if they exist (SQLite Write-Ahead Log files)
+  if [ -f /mnt/rails-storage/production.sqlite3-wal ]; then
+    sudo chown 1000:deploy /mnt/rails-storage/production.sqlite3-wal
+    sudo chmod 664 /mnt/rails-storage/production.sqlite3-wal
+  fi
+  if [ -f /mnt/rails-storage/production.sqlite3-shm ]; then
+    sudo chown 1000:deploy /mnt/rails-storage/production.sqlite3-shm
+    sudo chmod 664 /mnt/rails-storage/production.sqlite3-shm
+  fi
+  echo "     - Database file permissions updated"
+else
+  echo "   ℹ Database not yet created (will be created by Rails on first deploy)"
+fi
+
 echo "   ✓ Rails storage directory configured (/mnt/rails-storage)"
 echo "     - Owner: 1000:deploy (Rails container user)"
 echo "     - Permissions: 775 (group writable)"
