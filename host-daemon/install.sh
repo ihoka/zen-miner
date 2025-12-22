@@ -11,6 +11,22 @@ echo "=========================================="
 echo "Installing on: $(hostname)"
 echo ""
 
+# Check if sudo is available
+if ! command -v sudo &> /dev/null; then
+  echo "ERROR: sudo not found"
+  echo "This script requires sudo to install system components"
+  exit 1
+fi
+
+# Verify sudo access
+if ! sudo -v; then
+  echo "ERROR: Unable to obtain sudo privileges"
+  echo "Please ensure your user has sudo access"
+  exit 1
+fi
+echo "✓ Sudo access confirmed"
+echo ""
+
 # Check for required environment variables
 if [ -z "$MONERO_WALLET" ]; then
   echo "ERROR: MONERO_WALLET environment variable not set"
@@ -66,7 +82,7 @@ echo "   ✓ Ruby found: $(ruby --version)"
 # Use --no-user-install to force system-wide installation
 if ! gem list -i bundler >/dev/null 2>&1; then
   echo "   Installing bundler system-wide..."
-  gem install bundler --no-document --no-user-install
+  sudo gem install bundler --no-document --no-user-install
 else
   echo "   ✓ Bundler already installed"
 fi
@@ -90,11 +106,11 @@ echo "   ✓ XMRig found: $(xmrig --version | head -n1)"
 echo "[2/8] Installing system dependencies..."
 if command -v pacman &> /dev/null; then
   # Arch Linux
-  pacman -S --noconfirm --needed sqlite sudo
+  sudo pacman -S --noconfirm --needed sqlite sudo
 elif command -v apt-get &> /dev/null; then
   # Debian/Ubuntu
-  apt-get update -qq
-  apt-get install -y sqlite3 sudo
+  sudo apt-get update -qq
+  sudo apt-get install -y sqlite3 sudo
 else
   echo "ERROR: Unsupported package manager. Please install sqlite3 and sudo manually."
   exit 1
@@ -105,7 +121,7 @@ echo "[3/8] Creating xmrig system user..."
 if id "xmrig" &>/dev/null; then
   echo "   ✓ User 'xmrig' already exists"
 else
-  useradd -r -s /bin/false xmrig
+  sudo useradd -r -s /bin/false xmrig
   echo "   ✓ User 'xmrig' created"
 fi
 
@@ -114,42 +130,42 @@ echo "[3b/8] Creating xmrig-orchestrator system user..."
 if id "xmrig-orchestrator" &>/dev/null; then
   echo "   ✓ User 'xmrig-orchestrator' already exists"
 else
-  useradd -r -s /bin/false xmrig-orchestrator
+  sudo useradd -r -s /bin/false xmrig-orchestrator
   echo "   ✓ User 'xmrig-orchestrator' created"
 fi
 
 # Configure sudo permissions for orchestrator (NOPASSWD for specific systemctl commands)
 echo "[3c/8] Configuring sudo permissions for orchestrator..."
-cat > /etc/sudoers.d/xmrig-orchestrator <<EOF
+sudo bash -c 'cat > /etc/sudoers.d/xmrig-orchestrator <<EOF
 # Allow xmrig-orchestrator to manage xmrig service without password
 xmrig-orchestrator ALL=(ALL) NOPASSWD: /bin/systemctl start xmrig
 xmrig-orchestrator ALL=(ALL) NOPASSWD: /bin/systemctl stop xmrig
 xmrig-orchestrator ALL=(ALL) NOPASSWD: /bin/systemctl restart xmrig
 xmrig-orchestrator ALL=(ALL) NOPASSWD: /bin/systemctl is-active xmrig
 xmrig-orchestrator ALL=(ALL) NOPASSWD: /bin/systemctl status xmrig
-EOF
-chmod 0440 /etc/sudoers.d/xmrig-orchestrator
+EOF'
+sudo chmod 0440 /etc/sudoers.d/xmrig-orchestrator
 echo "   ✓ Sudo permissions configured"
 
 # Create directories
 echo "[4/8] Creating directories..."
-mkdir -p /var/log/xmrig
-mkdir -p /etc/xmrig
-mkdir -p /var/lib/xmrig-orchestrator/gems
-chown xmrig:xmrig /var/log/xmrig
+sudo mkdir -p /var/log/xmrig
+sudo mkdir -p /etc/xmrig
+sudo mkdir -p /var/lib/xmrig-orchestrator/gems
+sudo chown xmrig:xmrig /var/log/xmrig
 # Allow orchestrator user to write logs
-chown xmrig-orchestrator:xmrig-orchestrator /var/log/xmrig/orchestrator.log 2>/dev/null || touch /var/log/xmrig/orchestrator.log && chown xmrig-orchestrator:xmrig-orchestrator /var/log/xmrig/orchestrator.log
+sudo chown xmrig-orchestrator:xmrig-orchestrator /var/log/xmrig/orchestrator.log 2>/dev/null || sudo touch /var/log/xmrig/orchestrator.log && sudo chown xmrig-orchestrator:xmrig-orchestrator /var/log/xmrig/orchestrator.log
 # Give orchestrator ownership of its gem directory
-chown -R xmrig-orchestrator:xmrig-orchestrator /var/lib/xmrig-orchestrator
+sudo chown -R xmrig-orchestrator:xmrig-orchestrator /var/lib/xmrig-orchestrator
 echo "   ✓ Directories created"
 
 # Set up Rails storage directory for database access
 echo "[4b/8] Setting up Rails storage directory..."
-mkdir -p /mnt/rails-storage
+sudo mkdir -p /mnt/rails-storage
 
 # Create deploy group (used by Kamal for Docker volume access)
 if ! getent group deploy >/dev/null; then
-  groupadd deploy
+  sudo groupadd deploy
   echo "   ✓ Created 'deploy' group"
 else
   echo "   ✓ Group 'deploy' already exists"
@@ -157,11 +173,11 @@ fi
 
 # Set ownership to match Rails container user (uid=1000) with deploy group
 # This allows both the Rails container and the orchestrator (in deploy group) to access
-chown 1000:deploy /mnt/rails-storage
-chmod 775 /mnt/rails-storage
+sudo chown 1000:deploy /mnt/rails-storage
+sudo chmod 775 /mnt/rails-storage
 
 # Add xmrig-orchestrator to deploy group for database read access
-usermod -a -G deploy xmrig-orchestrator
+sudo usermod -a -G deploy xmrig-orchestrator
 echo "   ✓ Rails storage directory configured (/mnt/rails-storage)"
 echo "     - Owner: 1000:deploy (Rails container user)"
 echo "     - Permissions: 775 (group writable)"
@@ -169,7 +185,7 @@ echo "     - xmrig-orchestrator user added to deploy group"
 
 # Generate XMRig config
 echo "[5/8] Generating XMRig configuration..."
-cat > /etc/xmrig/config.json <<EOF
+sudo bash -c 'cat > /etc/xmrig/config.json <<EOF
 {
   "autosave": true,
   "http": {
@@ -199,25 +215,25 @@ cat > /etc/xmrig/config.json <<EOF
   "cuda": { "enabled": false },
   "donate-level": 1
 }
-EOF
+EOF'
 echo "   ✓ XMRig config written to /etc/xmrig/config.json"
 
 # Install orchestrator daemon
 echo "[6/8] Installing orchestrator daemon..."
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-cp "${SCRIPT_DIR}/xmrig-orchestrator" /usr/local/bin/xmrig-orchestrator
-chmod +x /usr/local/bin/xmrig-orchestrator
+sudo cp "${SCRIPT_DIR}/xmrig-orchestrator" /usr/local/bin/xmrig-orchestrator
+sudo chmod +x /usr/local/bin/xmrig-orchestrator
 echo "   ✓ Orchestrator installed to /usr/local/bin/xmrig-orchestrator"
 
 # Install systemd services
 echo "[7/8] Installing systemd services..."
-cp "${SCRIPT_DIR}/xmrig.service" /etc/systemd/system/xmrig.service
-cp "${SCRIPT_DIR}/xmrig-orchestrator.service" /etc/systemd/system/xmrig-orchestrator.service
+sudo cp "${SCRIPT_DIR}/xmrig.service" /etc/systemd/system/xmrig.service
+sudo cp "${SCRIPT_DIR}/xmrig-orchestrator.service" /etc/systemd/system/xmrig-orchestrator.service
 echo "   ✓ Service files copied to /etc/systemd/system/"
 
 # Configure logrotate
 echo "[8/8] Configuring log rotation..."
-cat > /etc/logrotate.d/xmrig <<EOF
+sudo bash -c 'cat > /etc/logrotate.d/xmrig <<EOF
 /var/log/xmrig/*.log {
     daily
     rotate 7
@@ -226,15 +242,15 @@ cat > /etc/logrotate.d/xmrig <<EOF
     notifempty
     create 0640 xmrig xmrig
 }
-EOF
+EOF'
 echo "   ✓ Logrotate configured (7 day retention)"
 
 # Reload systemd
-systemctl daemon-reload
+sudo systemctl daemon-reload
 
 # Enable services (but don't start yet)
-systemctl enable xmrig
-systemctl enable xmrig-orchestrator
+sudo systemctl enable xmrig
+sudo systemctl enable xmrig-orchestrator
 
 echo ""
 echo "=========================================="
