@@ -25,7 +25,12 @@
       "Bash(else echo \"RAILS_MASTER_KEY does NOT exist - needs to be generated\")",
       "Bash(fi)",
       "Bash(EDITOR=\"echo ''# Production secrets''\" bin/rails credentials:edit --environment production)",
-      "Bash(kamal lock:*)"
+      "Bash(kamal lock:*)",
+      "Bash(git check-ignore:*)",
+      "Bash(bin/rails generate:*)",
+      "Bash(bin/rails db:migrate:*)",
+      "Bash(bin/rails test:*)",
+      "Bash(bin/rails runner:*)"
     ]
   }
 }
