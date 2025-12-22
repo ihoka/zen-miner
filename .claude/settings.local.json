@@ -42,7 +42,8 @@
       "Bash(kamal app logs:*)",
       "Bash(kamal app:*)",
       "WebSearch",
-      "Bash(ssh:*)"
+      "Bash(ssh:*)",
+      "Bash(RAILS_ENV=test bin/rails db:migrate:*)"
     ]
   }
 }
