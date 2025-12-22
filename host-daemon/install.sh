@@ -171,49 +171,17 @@ else
   echo "   ✓ Group 'deploy' already exists"
 fi
 
-# Detect the current owner of the rails-storage directory (if it exists and has content)
-# This handles cases where the Rails container might use a different UID than 1000
-RAILS_STORAGE_OWNER="1000"
-if [ -f /mnt/rails-storage/production.sqlite3 ]; then
-  # Get the owner from the database file (most reliable)
-  EXISTING_OWNER=$(stat -c '%u' /mnt/rails-storage/production.sqlite3 2>/dev/null || stat -f '%u' /mnt/rails-storage/production.sqlite3 2>/dev/null || echo "1000")
-  RAILS_STORAGE_OWNER="$EXISTING_OWNER"
-  echo "   ✓ Detected Rails storage owner from database: $RAILS_STORAGE_OWNER"
-elif [ -d /mnt/rails-storage ] && [ "$(ls -A /mnt/rails-storage)" ]; then
-  # Fallback: get owner of the directory
-  EXISTING_OWNER=$(stat -c '%u' /mnt/rails-storage 2>/dev/null || stat -f '%u' /mnt/rails-storage 2>/dev/null || echo "1000")
-  RAILS_STORAGE_OWNER="$EXISTING_OWNER"
-  echo "   ✓ Detected Rails storage owner from directory: $RAILS_STORAGE_OWNER"
-fi
-
-# Set ownership to match Rails container user with deploy group
+# Set ownership to UID 1000 (Rails container user) with deploy group
+# The Rails container's 'rails' user is UID 1000 (see Dockerfile)
 # This allows both the Rails container and the orchestrator (in deploy group) to access
-sudo chown ${RAILS_STORAGE_OWNER}:deploy /mnt/rails-storage
+sudo chown -R 1000:deploy /mnt/rails-storage
 sudo chmod 775 /mnt/rails-storage
 
 # Add xmrig-orchestrator to deploy group for database read/write access
 sudo usermod -a -G deploy xmrig-orchestrator
 
-# Fix database file permissions for all SQLite databases
-if [ -d /mnt/rails-storage ] && [ "$(ls -A /mnt/rails-storage/*.sqlite3 2>/dev/null)" ]; then
-  echo "   ✓ Found existing databases, fixing permissions..."
-
-  # Fix all SQLite database files and their WAL/SHM files
-  for db_file in /mnt/rails-storage/*.sqlite3*; do
-    if [ -f "$db_file" ]; then
-      sudo chown ${RAILS_STORAGE_OWNER}:deploy "$db_file"
-      sudo chmod 664 "$db_file"
-      echo "     - Fixed: $(basename "$db_file")"
-    fi
-  done
-
-  echo "     - All database file permissions updated"
-else
-  echo "   ℹ No databases found yet (will be created by Rails on first deploy)"
-fi
-
 echo "   ✓ Rails storage directory configured (/mnt/rails-storage)"
-echo "     - Owner: ${RAILS_STORAGE_OWNER}:deploy (Rails container user)"
+echo "     - Owner: 1000:deploy (Rails container user)"
 echo "     - Permissions: 775 (group writable)"
 echo "     - xmrig-orchestrator user added to deploy group"
 
