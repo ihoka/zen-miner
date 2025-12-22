@@ -1,0 +1,17 @@
+[Unit]
+Description=XMRig Orchestrator Daemon
+After=docker.target
+Requires=docker.target
+
+[Service]
+Type=simple
+User=root
+ExecStart=/usr/local/bin/xmrig-orchestrator
+Restart=always
+RestartSec=10s
+Environment="XMRIG_DB_PATH=/mnt/rails-storage/production.sqlite3"
+StandardOutput=append:/var/log/xmrig/orchestrator.log
+StandardError=append:/var/log/xmrig/orchestrator.log
+
+[Install]
+WantedBy=multi-user.target

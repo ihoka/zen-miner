@@ -1,0 +1,207 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# XMRig Orchestrator Daemon
+# Polls Rails database for commands and manages XMRig systemd service
+
+require "sqlite3"
+require "json"
+require "net/http"
+require "socket"
+require "logger"
+require "time"
+
+class XmrigOrchestrator
+  POLL_INTERVAL = 10 # seconds
+  DB_PATH = ENV.fetch("XMRIG_DB_PATH", "/mnt/rails-storage/production.sqlite3")
+  LOG_PATH = ENV.fetch("XMRIG_LOG_PATH", "/var/log/xmrig/orchestrator.log")
+  XMRIG_API_URL = ENV.fetch("XMRIG_API_URL", "http://127.0.0.1:8080/2/summary")
+
+  def initialize
+    @hostname = Socket.gethostname
+    @logger = Logger.new(LOG_PATH, 7, "daily") # 7 day retention, daily rotation
+    @logger.level = Logger::INFO
+    @db = SQLite3::Database.new(DB_PATH)
+    @db.results_as_hash = true
+  end
+
+  def run
+    @logger.info "XMRig Orchestrator starting on #{@hostname}"
+    @logger.info "Database: #{DB_PATH}"
+    @logger.info "XMRig API: #{XMRIG_API_URL}"
+
+    loop do
+      begin
+        process_pending_commands
+        update_health_status
+        sleep POLL_INTERVAL
+      rescue => e
+        @logger.error "Error in main loop: #{e.message}"
+        @logger.error e.backtrace.join("\n")
+        sleep 30 # Back off on errors
+      end
+    end
+  end
+
+  private
+
+  def process_pending_commands
+    commands = @db.execute(
+      "SELECT * FROM xmrig_commands WHERE hostname = ? AND status = 'pending' ORDER BY created_at ASC",
+      [@hostname]
+    )
+
+    commands.each do |cmd|
+      process_command(cmd)
+    end
+  end
+
+  def process_command(cmd)
+    @logger.info "Processing command: #{cmd['action']} (ID: #{cmd['id']})"
+
+    # Mark as processing
+    @db.execute(
+      "UPDATE xmrig_commands SET status = 'processing', processed_at = ? WHERE id = ?",
+      [Time.now.utc.iso8601, cmd["id"]]
+    )
+
+    result = case cmd["action"]
+    when "start"
+      systemctl("start")
+    when "stop"
+      systemctl("stop")
+    when "restart"
+      systemctl("restart")
+    else
+      "Unknown action: #{cmd['action']}"
+    end
+
+    if $?.success?
+      @db.execute(
+        "UPDATE xmrig_commands SET status = 'completed', result = ? WHERE id = ?",
+        [result, cmd["id"]]
+      )
+      @logger.info "Command completed: #{cmd['action']}"
+    else
+      @db.execute(
+        "UPDATE xmrig_commands SET status = 'failed', error_message = ? WHERE id = ?",
+        [result, cmd["id"]]
+      )
+      @logger.error "Command failed: #{cmd['action']} - #{result}"
+    end
+  rescue => e
+    @db.execute(
+      "UPDATE xmrig_commands SET status = 'failed', error_message = ? WHERE id = ?",
+      [e.message, cmd["id"]]
+    )
+    @logger.error "Command error: #{e.message}"
+  end
+
+  def systemctl(action)
+    output = `systemctl #{action} xmrig 2>&1`
+    output
+  end
+
+  def update_health_status
+    health = fetch_xmrig_health
+
+    if health
+      update_process_status(
+        status: "running",
+        pid: health["worker_id"],
+        hashrate: health.dig("hashrate", "total", 0),
+        accepted_shares: health.dig("results", "shares_good"),
+        rejected_shares: health.dig("results", "shares_bad"),
+        health_data: health.to_json
+      )
+
+      # Check for errors
+      if health.dig("hashrate", "total", 0) == 0
+        @logger.warn "Zero hashrate detected"
+        check_and_restart_if_needed("zero_hashrate")
+      end
+    else
+      # XMRig not responding
+      status_output = `systemctl is-active xmrig`.strip
+
+      if status_output == "active"
+        update_process_status(status: "unhealthy")
+        check_and_restart_if_needed("api_not_responding")
+      else
+        update_process_status(status: "stopped")
+      end
+    end
+  rescue => e
+    @logger.error "Health check error: #{e.message}"
+  end
+
+  def fetch_xmrig_health
+    uri = URI(XMRIG_API_URL)
+    response = Net::HTTP.get_response(uri)
+
+    return nil unless response.is_a?(Net::HTTPSuccess)
+
+    JSON.parse(response.body)
+  rescue Errno::ECONNREFUSED, SocketError, JSON::ParserError => e
+    @logger.debug "XMRig API not accessible: #{e.class}"
+    nil
+  end
+
+  def update_process_status(attrs)
+    attrs[:hostname] = @hostname
+    attrs[:worker_id] ||= "#{@hostname}-production"
+    attrs[:last_health_check_at] = Time.now.utc.iso8601
+
+    existing = @db.execute(
+      "SELECT id FROM xmrig_processes WHERE hostname = ?",
+      [@hostname]
+    ).first
+
+    if existing
+      set_clause = attrs.map { |k, _| "#{k} = ?" }.join(", ")
+      values = attrs.values + [Time.now.utc.iso8601, existing["id"]]
+
+      @db.execute(
+        "UPDATE xmrig_processes SET #{set_clause}, updated_at = ? WHERE id = ?",
+        values
+      )
+    else
+      columns = attrs.keys.join(", ")
+      placeholders = (["?"] * attrs.size).join(", ")
+
+      @db.execute(
+        "INSERT INTO xmrig_processes (#{columns}, created_at, updated_at) VALUES (#{placeholders}, ?, ?)",
+        attrs.values + [Time.now.utc.iso8601, Time.now.utc.iso8601]
+      )
+    end
+  end
+
+  def check_and_restart_if_needed(reason)
+    # Immediate restart on any error (dedicated mining machines)
+    @logger.warn "Error detected, issuing immediate restart: #{reason}"
+
+    @db.execute(
+      "INSERT INTO xmrig_commands (hostname, action, reason, status, created_at, updated_at) VALUES (?, 'restart', ?, 'pending', ?, ?)",
+      [@hostname, reason, Time.now.utc.iso8601, Time.now.utc.iso8601]
+    )
+
+    @db.execute(
+      "UPDATE xmrig_processes SET restart_count = restart_count + 1, error_count = error_count + 1, last_error = ? WHERE hostname = ?",
+      [reason, @hostname]
+    )
+  end
+end
+
+# Signal handling for graceful shutdown
+trap("INT") do
+  puts "\nShutting down XMRig Orchestrator..."
+  exit 0
+end
+
+trap("TERM") do
+  puts "\nShutting down XMRig Orchestrator..."
+  exit 0
+end
+
+# Run daemon
+XmrigOrchestrator.new.run

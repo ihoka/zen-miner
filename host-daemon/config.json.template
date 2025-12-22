@@ -1,0 +1,33 @@
+{
+  "autosave": true,
+  "http": {
+    "enabled": true,
+    "host": "127.0.0.1",
+    "port": 8080,
+    "access-token": null,
+    "restricted": true
+  },
+  "pools": [
+    {
+      "url": "POOL_URL",
+      "user": "MONERO_WALLET",
+      "pass": "WORKER_ID",
+      "rig-id": "WORKER_ID",
+      "tls": true,
+      "keepalive": true
+    }
+  ],
+  "cpu": {
+    "enabled": true,
+    "huge-pages": true,
+    "priority": 1,
+    "max-threads-hint": 50
+  },
+  "opencl": {
+    "enabled": false
+  },
+  "cuda": {
+    "enabled": false
+  },
+  "donate-level": 1
+}

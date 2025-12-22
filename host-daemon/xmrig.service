@@ -1,0 +1,22 @@
+[Unit]
+Description=XMRig Cryptocurrency Miner
+After=network.target
+
+[Service]
+Type=simple
+User=xmrig
+ExecStart=/usr/local/bin/xmrig --config=/etc/xmrig/config.json
+Restart=on-failure
+RestartSec=10s
+StandardOutput=append:/var/log/xmrig/xmrig.log
+StandardError=append:/var/log/xmrig/xmrig.log
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/log/xmrig
+
+[Install]
+WantedBy=multi-user.target
