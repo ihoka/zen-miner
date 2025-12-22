@@ -63,13 +63,21 @@ fi
 echo "   ✓ Ruby found: $(ruby --version)"
 
 # Install bundler system-wide (required for bundler/inline in daemon)
+# Use --no-user-install to force system-wide installation
 if ! gem list -i bundler >/dev/null 2>&1; then
-  echo "   Installing bundler..."
-  gem install bundler --no-document
+  echo "   Installing bundler system-wide..."
+  gem install bundler --no-document --no-user-install
 else
   echo "   ✓ Bundler already installed"
 fi
-echo "   ✓ Bundler available for all users"
+
+# Verify bundler is accessible
+if ruby -e "require 'bundler/inline'" 2>/dev/null; then
+  echo "   ✓ Bundler available for all users"
+else
+  echo "   ERROR: Bundler installation failed or not accessible"
+  exit 1
+fi
 
 if ! command -v xmrig &> /dev/null; then
   echo "ERROR: XMRig not found in PATH"
