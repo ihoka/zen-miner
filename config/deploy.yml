@@ -38,8 +38,7 @@ proxy:
   healthcheck:
     path: /up
     interval: 3
-    timeout: 60  # Increased from 30s default
-    max_attempts: 20  # More attempts before giving up
+    timeout: 60  # Increased from 30s default to allow app startup
 
 # Container registry - Docker Hub.
 # Credentials are fetched from 1Password/Bitwarden via .kamal/secrets
