@@ -3,11 +3,6 @@ require "test_helper"
 class Xmrig::CommandServiceTest < ActiveSupport::TestCase
   setup do
     @service = Xmrig::CommandService
-    ENV['WORKER_ID'] = 'test-host'
-  end
-
-  teardown do
-    ENV.delete('WORKER_ID')
   end
 
   # Purpose: Validates start command creation
@@ -18,7 +13,6 @@ class Xmrig::CommandServiceTest < ActiveSupport::TestCase
     end
 
     cmd = XmrigCommand.last
-    assert_equal "test-host", cmd.hostname
     assert_equal "start", cmd.action
     assert_equal "pending", cmd.status
     assert_equal "test", cmd.reason
@@ -32,7 +26,6 @@ class Xmrig::CommandServiceTest < ActiveSupport::TestCase
     end
 
     cmd = XmrigCommand.last
-    assert_equal "test-host", cmd.hostname
     assert_equal "stop", cmd.action
     assert_equal "pending", cmd.status
     assert_equal "maintenance", cmd.reason
@@ -46,7 +39,6 @@ class Xmrig::CommandServiceTest < ActiveSupport::TestCase
     end
 
     cmd = XmrigCommand.last
-    assert_equal "test-host", cmd.hostname
     assert_equal "restart", cmd.action
     assert_equal "pending", cmd.status
     assert_equal "health_check_failed", cmd.reason
@@ -55,7 +47,7 @@ class Xmrig::CommandServiceTest < ActiveSupport::TestCase
   # Purpose: Validates command superseding logic
   # Can fail if: Old commands not canceled
   test "start_mining cancels pending commands" do
-    old_cmd = XmrigCommand.create!(hostname: "test-host", action: "stop", status: "pending")
+    old_cmd = XmrigCommand.create!(action: "stop", status: "pending")
 
     @service.start_mining
 
@@ -67,8 +59,8 @@ class Xmrig::CommandServiceTest < ActiveSupport::TestCase
   # Purpose: Validates only pending commands are canceled
   # Can fail if: Non-pending commands affected
   test "start_mining only cancels pending commands" do
-    processing_cmd = XmrigCommand.create!(hostname: "test-host", action: "stop", status: "processing")
-    completed_cmd = XmrigCommand.create!(hostname: "test-host", action: "restart", status: "completed")
+    processing_cmd = XmrigCommand.create!(action: "stop", status: "processing")
+    completed_cmd = XmrigCommand.create!(action: "restart", status: "completed")
 
     @service.start_mining
 
@@ -86,20 +78,5 @@ class Xmrig::CommandServiceTest < ActiveSupport::TestCase
 
     cmd = XmrigCommand.last
     assert_equal "manual", cmd.reason
-  end
-
-  # Purpose: Validates commands for different hosts don't interfere
-  # Can fail if: Cancellation affects wrong host
-  test "commands for different hosts are independent" do
-    host1_cmd = XmrigCommand.create!(hostname: "test-host", action: "start", status: "pending")
-    host2_cmd = XmrigCommand.create!(hostname: "host2", action: "start", status: "pending")
-
-    @service.stop_mining
-
-    host1_cmd.reload
-    host2_cmd.reload
-
-    assert_equal "failed", host1_cmd.status
-    assert_equal "pending", host2_cmd.status
   end
 end
