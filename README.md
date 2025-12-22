@@ -132,11 +132,17 @@ This deploys the Rails app with:
 
 **CRITICAL**: Host daemons must be installed AFTER Rails deployment to ensure database is available.
 
+**Prerequisites**: Ruby and XMRig must be installed and available in PATH before running the installation script.
+
 For each mining host, SSH in and run:
 
 ```bash
 # SSH to host machine
 ssh user@mining-host
+
+# Verify prerequisites are installed
+ruby --version  # Should show Ruby 3.x or later
+xmrig --version # Should show XMRig installation
 
 # Clone repository (or copy host-daemon directory)
 git clone https://github.com/yourusername/zen-miner.git
@@ -146,19 +152,20 @@ cd zen-miner/host-daemon
 export MONERO_WALLET="your-monero-wallet-address"
 export POOL_URL="pool.hashvault.pro:443"  # Optional
 export CPU_MAX_THREADS_HINT="50"          # Optional
-export XMRIG_VERSION="6.21.0"             # Optional
 
 # Run installation script as root
 sudo ./install.sh
 ```
 
 The installation script will:
-1. Install dependencies (Ruby, SQLite3, wget)
-2. Download and verify XMRig binary (with SHA256 checksum)
+1. Verify Ruby and XMRig are installed
+2. Install system dependencies (SQLite3, sudo)
 3. Create `xmrig` and `xmrig-orchestrator` system users
 4. Configure sudo permissions for orchestrator
-5. Set up systemd services
-6. Configure log rotation (7-day retention)
+5. Generate XMRig configuration
+6. Install orchestrator daemon
+7. Set up systemd services
+8. Configure log rotation (7-day retention)
 
 ### Step 3: Start Orchestrator Service
 

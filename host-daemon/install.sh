@@ -1,6 +1,7 @@
 #!/bin/bash
 # XMRig Orchestrator Installation Script
-# Installs XMRig, orchestrator daemon, and systemd services
+# Installs orchestrator daemon and systemd services
+# Prerequisites: Ruby and XMRig must be installed and in PATH
 
 set -e
 
@@ -38,59 +39,33 @@ echo "   ✓ Monero wallet address format validated"
 # Default values
 POOL_URL="${POOL_URL:-pool.hashvault.pro:443}"
 CPU_MAX_THREADS_HINT="${CPU_MAX_THREADS_HINT:-50}"
-XMRIG_VERSION="${XMRIG_VERSION:-6.21.0}"
 
 echo "Configuration:"
 echo "  Pool: $POOL_URL"
 echo "  CPU threads hint: $CPU_MAX_THREADS_HINT%"
-echo "  XMRig version: $XMRIG_VERSION"
 echo ""
 
-# Install dependencies
-echo "[1/8] Installing dependencies..."
-apt-get update -qq
-apt-get install -y ruby sqlite3 curl wget tar
+# Verify required binaries are installed
+echo "[1/8] Verifying prerequisites..."
 
-# Download and install XMRig
-echo "[2/8] Downloading XMRig v${XMRIG_VERSION}..."
-XMRIG_TARBALL="xmrig-${XMRIG_VERSION}-linux-x64.tar.gz"
-XMRIG_URL="https://github.com/xmrig/xmrig/releases/download/v${XMRIG_VERSION}/${XMRIG_TARBALL}"
-
-# SHA256 checksums for XMRig releases
-# Get checksums from: https://github.com/xmrig/xmrig/releases
-# For v6.21.0: https://github.com/xmrig/xmrig/releases/tag/v6.21.0
-case "$XMRIG_VERSION" in
-  "6.21.0")
-    XMRIG_SHA256="2ad43c13d92d6c8bb5839b8e66372d0ae6b7a5a5be6e3b7c5f8b8eb4e5f8b5c9"
-    ;;
-  *)
-    echo "WARNING: No checksum defined for XMRig v${XMRIG_VERSION}"
-    echo "Skipping checksum verification (NOT RECOMMENDED)"
-    XMRIG_SHA256=""
-    ;;
-esac
-
-wget -q "$XMRIG_URL" -O "/tmp/${XMRIG_TARBALL}"
-
-# Verify checksum if available
-if [ -n "$XMRIG_SHA256" ]; then
-  echo "   Verifying SHA256 checksum..."
-  echo "${XMRIG_SHA256}  /tmp/${XMRIG_TARBALL}" | sha256sum -c - || {
-    echo "ERROR: Checksum verification failed!"
-    echo "Expected: ${XMRIG_SHA256}"
-    echo "This may indicate a compromised download or incorrect version."
-    rm -f "/tmp/${XMRIG_TARBALL}"
-    exit 1
-  }
-  echo "   ✓ Checksum verified"
+if ! command -v ruby &> /dev/null; then
+  echo "ERROR: Ruby not found in PATH"
+  echo "Please install Ruby before running this script"
+  exit 1
 fi
+echo "   ✓ Ruby found: $(ruby --version)"
 
-tar -xzf "/tmp/${XMRIG_TARBALL}" -C /tmp
-mv "/tmp/xmrig-${XMRIG_VERSION}/xmrig" /usr/local/bin/xmrig
-chmod +x /usr/local/bin/xmrig
-rm -rf "/tmp/xmrig-${XMRIG_VERSION}"* "/tmp/${XMRIG_TARBALL}"
+if ! command -v xmrig &> /dev/null; then
+  echo "ERROR: XMRig not found in PATH"
+  echo "Please install XMRig before running this script"
+  exit 1
+fi
+echo "   ✓ XMRig found: $(xmrig --version | head -n1)"
 
-echo "   ✓ XMRig installed to /usr/local/bin/xmrig"
+# Install remaining dependencies
+echo "[2/8] Installing system dependencies..."
+apt-get update -qq
+apt-get install -y sqlite3 sudo
 
 # Create xmrig user
 echo "[3/8] Creating xmrig system user..."
