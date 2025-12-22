@@ -37,7 +37,10 @@
       "Bash(bundle list:*)",
       "Bash(gh pr comment:*)",
       "Bash(RAILS_MASTER_KEY=4dfcd12e99cf1a803d07323f807e7dad bin/rails runner:*)",
-      "Bash(ssh mini-1:*)"
+      "Bash(ssh mini-1:*)",
+      "Bash(kamal app exec:*)",
+      "Bash(kamal app logs:*)",
+      "Bash(kamal app:*)"
     ]
   }
 }

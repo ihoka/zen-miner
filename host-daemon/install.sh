@@ -146,7 +146,6 @@ echo "   ✓ Directories created"
 # Set up Rails storage directory for database access
 echo "[4b/8] Setting up Rails storage directory..."
 mkdir -p /mnt/rails-storage
-chmod 755 /mnt/rails-storage
 
 # Create deploy group (used by Kamal for Docker volume access)
 if ! getent group deploy >/dev/null; then
@@ -156,14 +155,16 @@ else
   echo "   ✓ Group 'deploy' already exists"
 fi
 
-# Set ownership so both Docker (deploy user) and orchestrator can access
-chown deploy:deploy /mnt/rails-storage
+# Set ownership to match Rails container user (uid=1000) with deploy group
+# This allows both the Rails container and the orchestrator (in deploy group) to access
+chown 1000:deploy /mnt/rails-storage
+chmod 775 /mnt/rails-storage
 
 # Add xmrig-orchestrator to deploy group for database read access
 usermod -a -G deploy xmrig-orchestrator
 echo "   ✓ Rails storage directory configured (/mnt/rails-storage)"
-echo "     - Owner: deploy:deploy"
-echo "     - Permissions: 755"
+echo "     - Owner: 1000:deploy (Rails container user)"
+echo "     - Permissions: 775 (group writable)"
 echo "     - xmrig-orchestrator user added to deploy group"
 
 # Generate XMRig config
