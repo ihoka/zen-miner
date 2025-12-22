@@ -58,6 +58,9 @@ env:
   secret:
     - RAILS_MASTER_KEY
   clear:
+    # Worker ID (short hostname of the host machine)
+    WORKER_ID: "$(hostname -s)"
+
     # Run Solid Queue in Puma process
     SOLID_QUEUE_IN_PUMA: true
 
