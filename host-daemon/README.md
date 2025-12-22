@@ -58,7 +58,7 @@ Docker Host
 
 5. **Issue start command from Rails:**
    ```ruby
-   Xmrig::CommandService.start_mining('hostname')
+   Xmrig::CommandService.start_mining
    ```
 
 ## Operation
@@ -67,7 +67,7 @@ Docker Host
 
 From Rails console:
 ```ruby
-Xmrig::CommandService.start_mining('mini-1')
+Xmrig::CommandService.start_mining
 ```
 
 The orchestrator daemon will:
@@ -81,14 +81,14 @@ The orchestrator daemon will:
 
 From Rails console:
 ```ruby
-Xmrig::CommandService.stop_mining('mini-1', reason: 'maintenance')
+Xmrig::CommandService.stop_mining(reason: 'maintenance')
 ```
 
 ### Restarting Mining
 
 From Rails console:
 ```ruby
-Xmrig::CommandService.restart_mining('mini-1', reason: 'config_change')
+Xmrig::CommandService.restart_mining(reason: 'config_change')
 ```
 
 ### Checking Status

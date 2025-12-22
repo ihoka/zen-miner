@@ -186,14 +186,14 @@ sudo journalctl -u xmrig-orchestrator -f
 From Rails console or web interface:
 
 ```ruby
-# Start mining on a host
-Xmrig::CommandService.start_mining('hostname')
+# Start mining (uses WORKER_ID from environment)
+Xmrig::CommandService.start_mining
 
 # Stop mining
-Xmrig::CommandService.stop_mining('hostname', reason: 'maintenance')
+Xmrig::CommandService.stop_mining(reason: 'maintenance')
 
 # Restart mining
-Xmrig::CommandService.restart_mining('hostname', reason: 'config_change')
+Xmrig::CommandService.restart_mining(reason: 'config_change')
 ```
 
 ### Database Migration Between Deployments
