@@ -415,18 +415,6 @@ module Xmrig
         Rails.logger.info "Issued restart command for #{hostname}: #{reason}"
       end
 
-      def start_all
-        Rails.application.config.xmrig_hosts.each do |hostname|
-          start_mining(hostname, reason: 'start_all')
-        end
-      end
-
-      def stop_all
-        Rails.application.config.xmrig_hosts.each do |hostname|
-          stop_mining(hostname, reason: 'stop_all')
-        end
-      end
-
       private
 
       def cancel_pending_commands(hostname)
@@ -749,18 +737,6 @@ production:
     schedule: every day at 3am
 ```
 
-#### config/application.rb
-```ruby
-module ZenMiner
-  class Application < Rails::Application
-    # ...
-
-    # XMRig host configuration
-    config.xmrig_hosts = ENV.fetch('XMRIG_HOSTS', 'mini-1,miner-beta,miner-gamma,miner-delta').split(',')
-  end
-end
-```
-
 #### config/deploy.yml Updates
 ```yaml
 volumes:
@@ -910,12 +886,6 @@ Xmrig::CommandService.stop_mining('mini-1', reason: 'maintenance')
 # Restart specific host
 Xmrig::CommandService.restart_mining('miner-beta', reason: 'config_change')
 
-# Start all hosts
-Xmrig::CommandService.start_all
-
-# Stop all hosts
-Xmrig::CommandService.stop_all
-
 # Check status
 XmrigProcess.for_host('mini-1').attributes
 ```
@@ -1039,16 +1009,6 @@ class Xmrig::CommandServiceTest < ActiveSupport::TestCase
     old_cmd.reload
     assert_equal 'failed', old_cmd.status
     assert_includes old_cmd.error_message, 'Superseded'
-  end
-
-  # Purpose: Validates bulk start command
-  # Can fail if: Not all hosts receive commands
-  test "start_all creates commands for all configured hosts" do
-    Rails.application.config.xmrig_hosts = ['host1', 'host2', 'host3']
-
-    assert_difference 'XmrigCommand.count', 3 do
-      Xmrig::CommandService.start_all
-    end
   end
 end
 ```
@@ -1328,7 +1288,8 @@ sudo tail -f /var/log/xmrig/orchestrator.log
 
 From Rails console:
 ```ruby
-Xmrig::CommandService.start_all
+# Start mining on a specific host
+Xmrig::CommandService.start_mining('mini-1')
 ```
 
 ## Operations
@@ -1338,9 +1299,9 @@ Xmrig::CommandService.start_all
 kamal app exec -i "bin/rails runner 'Xmrig::CommandService.start_mining(\"mini-1\")'"
 ```
 
-### Stop Mining (All Hosts)
+### Stop Mining (Single Host)
 ```ruby
-kamal app exec -i "bin/rails runner 'Xmrig::CommandService.stop_all'"
+kamal app exec -i "bin/rails runner 'Xmrig::CommandService.stop_mining(\"mini-1\", reason: \"manual\")'"
 ```
 
 ### Check Status

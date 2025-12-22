@@ -8,6 +8,15 @@ default: &default
   adapter: sqlite3
   max_connections: <%= ENV.fetch("RAILS_MAX_THREADS") { 5 } %>
   timeout: 5000
+  pragmas:
+    # Enable WAL mode for better concurrency with host daemon
+    journal_mode: wal
+    # Normal synchronous mode is safe with WAL
+    synchronous: normal
+    # Increase cache size for better performance
+    cache_size: 10000
+    # Enable foreign keys
+    foreign_keys: true
 
 development:
   <<: *default
