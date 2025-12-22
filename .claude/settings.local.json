@@ -41,7 +41,8 @@
       "Bash(kamal app exec:*)",
       "Bash(kamal app logs:*)",
       "Bash(kamal app:*)",
-      "WebSearch"
+      "WebSearch",
+      "Bash(ssh:*)"
     ]
   }
 }
