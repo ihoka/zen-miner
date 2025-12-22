@@ -5,6 +5,9 @@ service: zen-miner
 # TODO: Replace with your Docker Hub username
 image: ihoka/zen-miner
 
+# How long to wait for new containers to boot and become healthy
+deploy_timeout: 60
+
 # Deploy to these servers (6 servers behind Cloudflare load balancing).
 # TODO: Replace with actual server hostnames or IPs
 servers:
@@ -35,7 +38,6 @@ ssh:
 proxy:
   ssl: false
   host: app.zencash.ro
-  deploy_timeout: 60  # How long to wait for container to become healthy during deployment
   healthcheck:
     path: /up
     interval: 3
