@@ -19,6 +19,13 @@ if [ -z "$MONERO_WALLET" ]; then
   exit 1
 fi
 
+if [ -z "$WORKER_ID" ]; then
+  echo "ERROR: WORKER_ID environment variable not set"
+  echo "Please set it before running this script:"
+  echo "  export WORKER_ID='your-worker-id'"
+  exit 1
+fi
+
 # Validate Monero wallet address format
 # Standard address: starts with 4, 95 chars
 # Integrated address: starts with 4, 106 chars
@@ -126,8 +133,8 @@ cat > /etc/xmrig/config.json <<EOF
     {
       "url": "${POOL_URL}",
       "user": "${MONERO_WALLET}",
-      "pass": "$(hostname)-production",
-      "rig-id": "$(hostname)-production",
+      "pass": "${WORKER_ID}",
+      "rig-id": "${WORKER_ID}",
       "tls": true,
       "keepalive": true
     }
@@ -196,5 +203,5 @@ echo "     sudo systemctl status xmrig-orchestrator"
 echo "     sudo journalctl -u xmrig-orchestrator -f"
 echo ""
 echo "  4. Issue start command from Rails:"
-echo "     Xmrig::CommandService.start_mining('$(hostname)')"
+echo "     Xmrig::CommandService.start_mining('${WORKER_ID}')"
 echo ""

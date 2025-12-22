@@ -150,6 +150,7 @@ cd zen-miner/host-daemon
 
 # Set required environment variables
 export MONERO_WALLET="your-monero-wallet-address"
+export WORKER_ID="unique-worker-id"       # Unique identifier for this host
 export POOL_URL="pool.hashvault.pro:443"  # Optional
 export CPU_MAX_THREADS_HINT="50"          # Optional
 
