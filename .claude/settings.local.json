@@ -40,7 +40,8 @@
       "Bash(ssh mini-1:*)",
       "Bash(kamal app exec:*)",
       "Bash(kamal app logs:*)",
-      "Bash(kamal app:*)"
+      "Bash(kamal app:*)",
+      "WebSearch"
     ]
   }
 }

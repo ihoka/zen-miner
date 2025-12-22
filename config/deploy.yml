@@ -35,6 +35,7 @@ ssh:
 proxy:
   ssl: false
   host: app.zencash.ro
+  deploy_timeout: 60  # How long to wait for container to become healthy during deployment
   healthcheck:
     path: /up
     interval: 3
