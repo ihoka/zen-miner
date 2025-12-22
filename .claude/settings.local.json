@@ -32,7 +32,10 @@
       "Bash(bin/rails test:*)",
       "Bash(bin/rails runner:*)",
       "Bash(ruby -c:*)",
-      "Bash(bash -n:*)"
+      "Bash(bash -n:*)",
+      "Bash(ls:*)",
+      "Bash(bundle list:*)",
+      "Bash(gh pr comment:*)"
     ]
   }
 }

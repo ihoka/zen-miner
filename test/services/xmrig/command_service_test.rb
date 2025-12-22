@@ -74,40 +74,6 @@ class Xmrig::CommandServiceTest < ActiveSupport::TestCase
     assert_equal "completed", completed_cmd.status
   end
 
-  # Purpose: Validates start_all creates commands for all hosts
-  # Can fail if: Not all hosts receive commands or config not loaded
-  test "start_all creates commands for all configured hosts" do
-    # Temporarily set test hosts
-    original_hosts = Rails.application.config.xmrig_hosts
-    Rails.application.config.xmrig_hosts = [ "host1", "host2", "host3" ]
-
-    assert_difference "XmrigCommand.count", 3 do
-      @service.start_all
-    end
-
-    commands = XmrigCommand.last(3)
-    assert_equal [ "host1", "host2", "host3" ], commands.map(&:hostname).sort
-    assert commands.all? { |cmd| cmd.action == "start" && cmd.reason == "start_all" }
-  ensure
-    Rails.application.config.xmrig_hosts = original_hosts
-  end
-
-  # Purpose: Validates stop_all creates commands for all hosts
-  # Can fail if: Not all hosts receive commands
-  test "stop_all creates commands for all configured hosts" do
-    original_hosts = Rails.application.config.xmrig_hosts
-    Rails.application.config.xmrig_hosts = [ "host1", "host2" ]
-
-    assert_difference "XmrigCommand.count", 2 do
-      @service.stop_all
-    end
-
-    commands = XmrigCommand.last(2)
-    assert commands.all? { |cmd| cmd.action == "stop" && cmd.reason == "stop_all" }
-  ensure
-    Rails.application.config.xmrig_hosts = original_hosts
-  end
-
   # Purpose: Validates default reason for start_mining
   # Can fail if: Default reason not applied
   test "start_mining uses default reason when not provided" do

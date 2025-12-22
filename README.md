@@ -193,9 +193,6 @@ Xmrig::CommandService.stop_mining('hostname', reason: 'maintenance')
 
 # Restart mining
 Xmrig::CommandService.restart_mining('hostname', reason: 'config_change')
-
-# Start all configured hosts
-Xmrig::CommandService.start_all
 ```
 
 ### Database Migration Between Deployments

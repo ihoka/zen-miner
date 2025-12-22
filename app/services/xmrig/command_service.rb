@@ -49,18 +49,6 @@ module Xmrig
         Rails.logger.info "Issued restart command for #{hostname}: #{reason}"
       end
 
-      def start_all
-        Rails.application.config.xmrig_hosts.each do |hostname|
-          start_mining(hostname, reason: "start_all")
-        end
-      end
-
-      def stop_all
-        Rails.application.config.xmrig_hosts.each do |hostname|
-          stop_mining(hostname, reason: "stop_all")
-        end
-      end
-
       private
 
       def cancel_pending_commands(hostname)
