@@ -34,3 +34,7 @@
 /config/*.key
 
 .mise.local.toml
+
+# Ignore key files for decrypting credentials and more.
+/config/credentials/*.key
+

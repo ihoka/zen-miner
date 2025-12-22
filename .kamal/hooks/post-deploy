@@ -1,0 +1,24 @@
+#!/bin/bash
+
+# Post-deploy hook: Notification and verification after deployment
+#
+# Available environment variables:
+# KAMAL_RECORDED_AT, KAMAL_PERFORMER, KAMAL_VERSION
+# KAMAL_HOSTS, KAMAL_COMMAND, KAMAL_SUBCOMMAND
+# KAMAL_ROLES (if set), KAMAL_DESTINATION (if set)
+
+set -e
+
+echo "========================================"
+echo "Deployment completed successfully!"
+echo "========================================"
+echo "Version: ${KAMAL_VERSION:-unknown}"
+echo "Performer: ${KAMAL_PERFORMER:-unknown}"
+echo "Hosts: ${KAMAL_HOSTS:-unknown}"
+echo "Time: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+echo "========================================"
+
+# Optional: Send notification (uncomment and configure)
+# curl -X POST "https://hooks.slack.com/services/YOUR/WEBHOOK/URL" \
+#   -H "Content-Type: application/json" \
+#   -d "{\"text\": \"Zen Miner deployed: ${KAMAL_VERSION}\"}"

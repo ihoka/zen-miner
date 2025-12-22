@@ -1,7 +1,7 @@
-# Kamal Deployment Setup for Multi-Server Production
+# Kamal Deployment Setup for Production
 
 ## Status
-Draft
+Draft (Simplified - Single Server)
 
 ## Authors
 - Claude Code Assistant
@@ -9,7 +9,9 @@ Draft
 
 ## Overview
 
-Configure Kamal for production deployment of the Zen Miner Rails application across multiple servers, using Docker Hub as the container registry, Cloudflare for SSL/proxy, and SQLite with persistent volume storage.
+Configure Kamal for production deployment of the Zen Miner Rails application using Docker Hub as the container registry, Cloudflare for SSL/proxy, and SQLite with persistent volume storage.
+
+**Note**: This is an open source project. Secrets are managed via 1Password/Bitwarden and fetched at deploy time by maintainers.
 
 ## Background/Problem Statement
 
@@ -33,19 +35,17 @@ The application cannot be deployed to production because the Kamal configuration
 ## Goals
 
 - Configure Docker Hub as the container registry with proper authentication
-- Set up multi-server deployment with role-based server assignment
+- Set up multi-server deployment (6 servers) with Cloudflare load balancing
 - Enable Cloudflare proxy integration with proper SSL settings
-- Configure SQLite persistence across deployments with shared volume strategy
-- Establish secrets management best practices
-- Create deployment workflow documentation
+- Use SQLite per server (no shared state needed yet)
+- Establish secrets management via 1Password/Bitwarden (open source friendly)
 - Set up health checks and zero-downtime deployments
 
 ## Non-Goals
 
-- Database migration to PostgreSQL (using SQLite with volumes)
-- Redis or other cache services
+- Redis or other cache services (using Solid Cache/Queue)
 - Custom load balancer configuration (Cloudflare handles this)
-- CI/CD pipeline automation (manual deployment focus)
+- CI/CD pipeline automation (manual deployment by maintainers)
 - Kubernetes or container orchestration beyond Kamal
 - Multi-region deployment
 - Blue-green deployment strategy (Kamal uses rolling updates)
@@ -53,19 +53,19 @@ The application cannot be deployed to production because the Kamal configuration
 ## Technical Dependencies
 
 ### Required
-| Dependency | Version | Purpose |
-|------------|---------|---------|
-| Kamal | 2.x (bundled) | Deployment orchestration |
-| Docker | 24.0+ | Container runtime on servers |
-| Ruby | 3.4.5 | Application runtime |
-| Thruster | (bundled) | HTTP asset caching/compression |
+| Dependency | Version       | Purpose                        |
+| ---------- | ------------- | ------------------------------ |
+| Kamal      | 2.x (bundled) | Deployment orchestration       |
+| Docker     | 24.0+         | Container runtime on servers   |
+| Ruby       | 3.4.5         | Application runtime            |
+| Thruster   | (bundled)     | HTTP asset caching/compression |
 
 ### External Services
-| Service | Purpose | Configuration |
-|---------|---------|---------------|
-| Docker Hub | Container registry | Username + access token |
-| Cloudflare | SSL termination, CDN, proxy | DNS + proxy enabled |
-| SSH | Server access | Key-based authentication |
+| Service    | Purpose                     | Configuration            |
+| ---------- | --------------------------- | ------------------------ |
+| Docker Hub | Container registry          | Username + access token  |
+| Cloudflare | SSL termination, CDN, proxy | DNS + proxy enabled      |
+| SSH        | Server access               | Key-based authentication |
 
 ### Server Requirements
 Each deployment server needs:
@@ -75,6 +75,98 @@ Each deployment server needs:
 - Ports 80/443 open for web traffic
 - Sufficient disk space for SQLite database
 
+## Server Prerequisites & Setup
+
+Before running `kamal setup`, each Arch Linux server must be configured with the following components.
+
+### 1. Install Docker
+
+```bash
+# Update system
+sudo pacman -Syu
+
+# Install Docker
+sudo pacman -S docker
+
+# Enable and start Docker service
+sudo systemctl enable docker
+sudo systemctl start docker
+
+# Verify Docker is running
+sudo docker --version
+```
+
+### 2. Create Deployment User & Configure SSH
+
+```bash
+# Create a deployment user (if not using root)
+sudo useradd -m -G docker deploy
+
+# Add your SSH public key to the deployment user
+sudo mkdir -p /home/deploy/.ssh
+sudo vim /home/deploy/.ssh/authorized_keys  # Paste your public key
+sudo chown -R deploy:deploy /home/deploy/.ssh
+sudo chmod 700 /home/deploy/.ssh
+sudo chmod 600 /home/deploy/.ssh/authorized_keys
+```
+
+### 3. Configure Firewall
+
+```bash
+# If using ufw (needs to be installed)
+sudo pacman -S ufw
+sudo ufw allow 22/tcp    # SSH
+sudo ufw allow 80/tcp    # HTTP
+sudo ufw allow 443/tcp   # HTTPS
+sudo ufw enable
+
+# Or with iptables directly
+sudo iptables -A INPUT -p tcp --dport 22 -j ACCEPT
+sudo iptables -A INPUT -p tcp --dport 80 -j ACCEPT
+sudo iptables -A INPUT -p tcp --dport 443 -j ACCEPT
+```
+
+### 4. Verify Outbound Connectivity
+
+```bash
+# Test connection to Docker Hub
+curl -I https://hub.docker.com
+
+# Test Docker pull
+sudo docker pull hello-world
+sudo docker run hello-world
+```
+
+### 5. Verify SSH Access from Local Machine
+
+Before running `kamal setup`, verify SSH access from your local machine:
+
+```bash
+# Test SSH connection (replace with your server)
+ssh deploy@server1.zencash.ro "docker ps"
+
+# If successful, you should see Docker container list (empty initially)
+```
+
+### Server Setup Checklist
+
+For each of your 6 servers:
+
+- [ ] Docker installed and running (`systemctl status docker`)
+- [ ] Deployment user created and added to `docker` group
+- [ ] SSH key-based authentication configured
+- [ ] Ports 80, 443, and 22 accessible
+- [ ] Outbound HTTPS to Docker Hub working
+- [ ] Sufficient disk space (recommend at least 20GB free)
+
+Once all servers are configured, run:
+
+```bash
+bin/kamal setup
+```
+
+This will bootstrap Kamal on each server and deploy your application.
+
 ## Detailed Design
 
 ### Architecture Overview
@@ -83,51 +175,43 @@ Each deployment server needs:
 ┌─────────────────────────────────────────────────────────────────────┐
 │                         CLOUDFLARE                                   │
 │  ┌─────────────────────────────────────────────────────────────┐    │
-│  │  DNS: app.example.com → Cloudflare Proxy                    │    │
-│  │  SSL: Full (strict) mode                                    │    │
+│  │  DNS: app.zencash.ro → Cloudflare Proxy (Load Balanced)    │    │
+│  │  SSL: Full mode (Cloudflare → HTTP → Servers)               │    │
 │  │  Caching: Static assets cached at edge                      │    │
 │  └─────────────────────────────────────────────────────────────┘    │
 └─────────────────────────────────────────────────────────────────────┘
                                     │
-                    ┌───────────────┼───────────────┐
-                    │               │               │
-                    ▼               ▼               ▼
-         ┌──────────────┐ ┌──────────────┐ ┌──────────────┐
-         │   Server 1   │ │   Server 2   │ │   Server N   │
-         │  (Primary)   │ │    (Web)     │ │    (Web)     │
-         │──────────────│ │──────────────│ │──────────────│
-         │ kamal-proxy  │ │ kamal-proxy  │ │ kamal-proxy  │
-         │      ↓       │ │      ↓       │ │      ↓       │
-         │ Rails + Puma │ │ Rails + Puma │ │ Rails + Puma │
-         │ + Thruster   │ │ + Thruster   │ │ + Thruster   │
-         │      ↓       │ │      ↓       │ │      ↓       │
-         │  SQLite DB   │ │  (Read-only) │ │  (Read-only) │
-         │  (Primary)   │ │              │ │              │
-         └──────────────┘ └──────────────┘ └──────────────┘
-                │
-         ┌──────────────┐
-         │ Persistent   │
-         │ Volume       │
-         │ /rails/      │
-         │ storage      │
-         └──────────────┘
+          ┌─────────┬─────────┬─────┴─────┬─────────┬─────────┐
+          ▼         ▼         ▼           ▼         ▼         ▼
+     ┌────────┐┌────────┐┌────────┐┌────────┐┌────────┐┌────────┐
+     │Server 1││Server 2││Server 3││Server 4││Server 5││Server 6│
+     │────────││────────││────────││────────││────────││────────│
+     │ kamal- ││ kamal- ││ kamal- ││ kamal- ││ kamal- ││ kamal- │
+     │ proxy  ││ proxy  ││ proxy  ││ proxy  ││ proxy  ││ proxy  │
+     │   ↓    ││   ↓    ││   ↓    ││   ↓    ││   ↓    ││   ↓    │
+     │ Rails  ││ Rails  ││ Rails  ││ Rails  ││ Rails  ││ Rails  │
+     │ + Puma ││ + Puma ││ + Puma ││ + Puma ││ + Puma ││ + Puma │
+     │   ↓    ││   ↓    ││   ↓    ││   ↓    ││   ↓    ││   ↓    │
+     │SQLite  ││SQLite  ││SQLite  ││SQLite  ││SQLite  ││SQLite  │
+     │(local) ││(local) ││(local) ││(local) ││(local) ││(local) │
+     └────────┘└────────┘└────────┘└────────┘└────────┘└────────┘
 ```
 
-### Multi-Server SQLite Strategy
+Each server has its own SQLite database (no shared state). This is suitable for
+stateless workers or applications without models yet. When shared database is
+needed, migrate to PostgreSQL (e.g., Neon).
 
-Since SQLite doesn't support concurrent writes from multiple servers, there are two approaches:
+### Secrets Management (Open Source)
 
-**Option A: Single Primary Server (Recommended for this setup)**
-- One server handles all database writes
-- Other servers are stateless web frontends (if read-only features needed)
-- Simple, reliable, matches current architecture
+Since this is an open source project, secrets are **never stored in the repository**. Maintainers fetch secrets from their password manager at deploy time using Kamal's built-in adapters.
 
-**Option B: Litestream Replication (Future Enhancement)**
-- Use Litestream to replicate SQLite to S3
-- Read replicas can serve read-only traffic
-- More complex but allows scaling reads
-
-For this spec, we'll implement **Option A** with a single-server primary model initially, with clear upgrade path to multi-server when needed.
+| Secret                    | Storage                      | Who Has Access   |
+| ------------------------- | ---------------------------- | ---------------- |
+| `RAILS_MASTER_KEY`        | 1Password/Bitwarden vault    | Maintainers only |
+| `KAMAL_REGISTRY_USERNAME` | 1Password/Bitwarden vault    | Maintainers only |
+| `KAMAL_REGISTRY_PASSWORD` | 1Password/Bitwarden vault    | Maintainers only |
+| SSH keys                  | Each maintainer's `~/.ssh/`  | Individual       |
+| Server IPs, domain        | `config/deploy.yml` (public) | Everyone         |
 
 ### Configuration Changes
 
@@ -135,32 +219,27 @@ For this spec, we'll implement **Option A** with a single-server primary model i
 
 ```yaml
 # Name of your application. Used to uniquely configure containers.
-service: zen_miner
+service: zen-miner
 
 # Name of the container image.
-image: your-dockerhub-username/zen_miner
+image: ihoka/zen-miner
 
-# Deploy to these servers.
+# Deploy to these servers (6 servers behind Cloudflare load balancing)
 servers:
   web:
-    - 123.45.67.89  # Primary server - replace with actual IP
-    # Add more servers when scaling:
-    # - 123.45.67.90
-    # - 123.45.67.91
-    hosts:
-      123.45.67.89:
-        labels:
-          role: primary
-    options:
-      memory: 512m
+    - server1.zencash.ro
+    - server2.zencash.ro
+    - server3.zencash.ro
+    - server4.zencash.ro
+    - server5.zencash.ro
+    - server6.zencash.ro
 
 # Cloudflare proxy configuration
 # SSL is terminated at Cloudflare, so we don't need Let's Encrypt here
-# Set Cloudflare SSL/TLS mode to "Full" (not "Full strict" since we're using HTTP internally)
+# Set Cloudflare SSL/TLS mode to "Full"
 proxy:
   ssl: false  # Cloudflare handles SSL
-  host: app.example.com  # Replace with your domain
-  # Health check configuration
+  host: app.zencash.ro  # Replace with your domain
   healthcheck:
     path: /up
     interval: 3
@@ -168,7 +247,7 @@ proxy:
 # Container registry - Docker Hub
 registry:
   server: docker.io
-  username: your-dockerhub-username
+  username: ihoka
   password:
     - KAMAL_REGISTRY_PASSWORD
 
@@ -183,7 +262,7 @@ env:
     # Cloudflare sends X-Forwarded-For, trust the proxy
     RAILS_ASSUME_SSL: true
 
-    # Single server - 2 Puma workers recommended
+    # 2 Puma workers per server
     WEB_CONCURRENCY: 2
 
     # Log level for production
@@ -195,11 +274,10 @@ aliases:
   shell: app exec --interactive --reuse "bash"
   logs: app logs -f
   dbc: app exec --interactive --reuse "bin/rails dbconsole"
-  backup: app exec "cp /rails/storage/production.sqlite3 /rails/storage/backup-$(date +%Y%m%d-%H%M%S).sqlite3"
 
-# Persistent storage for SQLite and Active Storage
+# Persistent storage for Active Storage uploads
 volumes:
-  - "zen_miner_storage:/rails/storage"
+  - "zen-miner_storage:/rails/storage"
 
 # Asset bridging between deployments
 asset_path: /rails/public/assets
@@ -207,35 +285,53 @@ asset_path: /rails/public/assets
 # Build configuration
 builder:
   arch: amd64
-  # Use multi-platform builds if deploying to ARM servers
-  # multiarch: true
-
-  # For faster builds on M1/M2 Macs, use a remote amd64 builder:
-  # remote: ssh://docker@your-build-server
-
-# SSH configuration (optional, for non-root deployment)
-# ssh:
-#   user: deploy
-#   keys:
-#     - ~/.ssh/id_ed25519
 ```
 
 #### 2. Updated `.kamal/secrets`
 
 ```bash
-# Secrets for Kamal deployment
-# DO NOT COMMIT ACTUAL VALUES - use environment variables or password manager
+# Secrets for Kamal deployment - fetched from password manager
+# This file is safe to commit - it contains NO actual secrets
 
-# Docker Hub access token (create at https://hub.docker.com/settings/security)
-KAMAL_REGISTRY_PASSWORD=$KAMAL_REGISTRY_PASSWORD
+# =============================================================================
+# 1PASSWORD INTEGRATION (recommended)
+# =============================================================================
+# Prerequisites:
+#   1. Install 1Password CLI: https://developer.1password.com/docs/cli/get-started/
+#   2. Sign in: op signin
+#   3. Create vault item "Zen Miner Production" with fields:
+#      - KAMAL_REGISTRY_USERNAME (Docker Hub username)
+#      - KAMAL_REGISTRY_PASSWORD (Docker Hub access token)
+#      - RAILS_MASTER_KEY (from config/master.key)
 
-# Rails master key for credentials decryption
-RAILS_MASTER_KEY=$(cat config/master.key)
+SECRETS=$(kamal secrets fetch \
+  --adapter 1password \
+  --account your-team.1password.com \
+  --from "Private/Zen Miner Production" \
+  KAMAL_REGISTRY_USERNAME KAMAL_REGISTRY_PASSWORD RAILS_MASTER_KEY)
 
-# Alternative: Use 1Password or similar
-# SECRETS=$(kamal secrets fetch --adapter 1password --account my-account --from Vault/ZenMiner KAMAL_REGISTRY_PASSWORD RAILS_MASTER_KEY)
-# KAMAL_REGISTRY_PASSWORD=$(kamal secrets extract KAMAL_REGISTRY_PASSWORD ${SECRETS})
-# RAILS_MASTER_KEY=$(kamal secrets extract RAILS_MASTER_KEY ${SECRETS})
+KAMAL_REGISTRY_USERNAME=$(kamal secrets extract KAMAL_REGISTRY_USERNAME $SECRETS)
+KAMAL_REGISTRY_PASSWORD=$(kamal secrets extract KAMAL_REGISTRY_PASSWORD $SECRETS)
+RAILS_MASTER_KEY=$(kamal secrets extract RAILS_MASTER_KEY $SECRETS)
+
+# =============================================================================
+# BITWARDEN INTEGRATION (alternative)
+# =============================================================================
+# Uncomment below and comment out 1Password section above if using Bitwarden
+#
+# Prerequisites:
+#   1. Install Bitwarden CLI: https://bitwarden.com/help/cli/
+#   2. Login and unlock: bw login && bw unlock
+#   3. Create secure note "Zen Miner Production" with fields
+#
+# SECRETS=$(kamal secrets fetch \
+#   --adapter bitwarden \
+#   --from "Zen Miner Production" \
+#   KAMAL_REGISTRY_USERNAME KAMAL_REGISTRY_PASSWORD RAILS_MASTER_KEY)
+#
+# KAMAL_REGISTRY_USERNAME=$(kamal secrets extract KAMAL_REGISTRY_USERNAME $SECRETS)
+# KAMAL_REGISTRY_PASSWORD=$(kamal secrets extract KAMAL_REGISTRY_PASSWORD $SECRETS)
+# RAILS_MASTER_KEY=$(kamal secrets extract RAILS_MASTER_KEY $SECRETS)
 ```
 
 ### Rails Configuration Changes
@@ -272,7 +368,7 @@ config.action_dispatch.trusted_proxies = ActionDispatch::RemoteIp::TRUSTED_PROXI
 ]
 
 # Ensure proper host headers from Cloudflare
-config.hosts << "app.example.com"  # Replace with your domain
+config.hosts << "app.zencash.ro"  # Replace with your domain
 config.hosts << /.*\.example\.com/ # Allow subdomains if needed
 ```
 
@@ -318,7 +414,7 @@ VERSION=$(cat .kamal/version 2>/dev/null || echo "unknown")
 echo "Deployment of version $VERSION complete!"
 
 # Optional: Send notification (uncomment and configure)
-# curl -X POST "https://api.example.com/notify" \
+# curl -X POST "https://api.zencash.ro/notify" \
 #   -H "Content-Type: application/json" \
 #   -d "{\"text\": \"Zen Miner deployed: $VERSION\"}"
 ```
@@ -327,12 +423,12 @@ echo "Deployment of version $VERSION complete!"
 
 Required Cloudflare settings:
 
-| Setting | Value | Location |
-|---------|-------|----------|
-| SSL/TLS Mode | Full | SSL/TLS > Overview |
-| Always Use HTTPS | On | SSL/TLS > Edge Certificates |
-| Minimum TLS Version | 1.2 | SSL/TLS > Edge Certificates |
-| Proxy Status | Proxied (orange cloud) | DNS > Records |
+| Setting             | Value                  | Location                    |
+| ------------------- | ---------------------- | --------------------------- |
+| SSL/TLS Mode        | Full                   | SSL/TLS > Overview          |
+| Always Use HTTPS    | On                     | SSL/TLS > Edge Certificates |
+| Minimum TLS Version | 1.2                    | SSL/TLS > Edge Certificates |
+| Proxy Status        | Proxied (orange cloud) | DNS > Records               |
 
 ## User Experience
 
@@ -422,13 +518,13 @@ end
 
 ### Deployment Testing Checklist
 
-| Test | Command | Expected Result |
-|------|---------|-----------------|
-| Config valid | `bin/kamal config` | No errors, shows parsed config |
-| Registry auth | `docker login docker.io` | Login succeeded |
-| SSH access | `ssh deploy@your-server 'docker ps'` | Lists containers |
-| DNS resolution | `dig app.example.com` | Returns Cloudflare IPs |
-| SSL valid | `curl -I https://app.example.com` | HTTP 200, valid cert |
+| Test           | Command                              | Expected Result                |
+| -------------- | ------------------------------------ | ------------------------------ |
+| Config valid   | `bin/kamal config`                   | No errors, shows parsed config |
+| Registry auth  | `docker login docker.io`             | Login succeeded                |
+| SSH access     | `ssh deploy@your-server 'docker ps'` | Lists containers               |
+| DNS resolution | `dig app.zencash.ro`                 | Returns Cloudflare IPs         |
+| SSL valid      | `curl -I https://app.zencash.ro`     | HTTP 200, valid cert           |
 
 ### Rollback Testing
 
@@ -472,11 +568,11 @@ The default `config/puma.rb` should work, but consider:
 
 ### Secrets Management
 
-| Secret | Storage | Access |
-|--------|---------|--------|
-| RAILS_MASTER_KEY | `config/master.key` (gitignored) | Read at deploy time |
-| KAMAL_REGISTRY_PASSWORD | Environment variable | Set in CI or shell |
-| SSH Keys | Local `~/.ssh/` | Used by Kamal for deployment |
+| Secret                  | Storage                          | Access                       |
+| ----------------------- | -------------------------------- | ---------------------------- |
+| RAILS_MASTER_KEY        | `config/master.key` (gitignored) | Read at deploy time          |
+| KAMAL_REGISTRY_PASSWORD | Environment variable             | Set in CI or shell           |
+| SSH Keys                | Local `~/.ssh/`                  | Used by Kamal for deployment |
 
 ### Container Security
 
