@@ -36,7 +36,6 @@
       "Bash(ls:*)",
       "Bash(bundle list:*)",
       "Bash(gh pr comment:*)",
-      "Bash(RAILS_MASTER_KEY=4dfcd12e99cf1a803d07323f807e7dad bin/rails runner:*)",
       "Bash(ssh mini-1:*)",
       "Bash(kamal app exec:*)",
       "Bash(kamal app logs:*)",
@@ -46,7 +45,8 @@
       "Bash(RAILS_ENV=test bin/rails db:migrate:*)",
       "Skill(git:commit)",
       "Skill(git:checkout)",
-      "Skill(git:push)"
+      "Skill(git:push)",
+      "Bash(tree:*)"
     ]
   }
 }
