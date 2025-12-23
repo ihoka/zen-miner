@@ -38,6 +38,3 @@
 # Ignore key files for decrypting credentials and more.
 /config/credentials/*.key
 
-# Ignore SSH known hosts (contains host keys)
-/config/known_hosts
-

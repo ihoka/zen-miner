@@ -57,7 +57,7 @@ module OrchestratorUpdater
 
   # Manages SSH known hosts for secure host verification
   class KnownHostsManager
-    KNOWN_HOSTS_FILE = "config/known_hosts"
+    KNOWN_HOSTS_FILE = File.expand_path("~/.ssh/known_hosts")
 
     # Verify a host's SSH fingerprint against known hosts
     # @param hostname [String] hostname to verify
@@ -86,8 +86,9 @@ module OrchestratorUpdater
       host_key = get_host_key(hostname, ssh_user)
       return false unless host_key
 
-      # Ensure config directory exists
-      FileUtils.mkdir_p(File.dirname(KNOWN_HOSTS_FILE))
+      # Ensure ~/.ssh directory exists with proper permissions
+      ssh_dir = File.expand_path("~/.ssh")
+      FileUtils.mkdir_p(ssh_dir, mode: 0700) unless Dir.exist?(ssh_dir)
 
       # Create entry in known_hosts format
       entry = "#{hostname} #{host_key}"
@@ -100,6 +101,9 @@ module OrchestratorUpdater
         end
         puts "✓ Added #{hostname} to known hosts"
       end
+
+      # Ensure known_hosts file has secure permissions
+      File.chmod(0600, KNOWN_HOSTS_FILE) if File.exist?(KNOWN_HOSTS_FILE)
 
       true
     rescue => e

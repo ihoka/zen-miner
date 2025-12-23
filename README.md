@@ -217,7 +217,7 @@ bin/update-orchestrators-ssh --add-hosts
 bin/update-orchestrators-ssh --list-hosts
 ```
 
-**⚠️ Security Note:** The `config/known_hosts` file stores SSH host keys to prevent MITM attacks. This file is gitignored and should not be committed to version control.
+**⚠️ Security Note:** SSH host keys are stored in `~/.ssh/known_hosts` (standard SSH location) to prevent MITM attacks. Each user must verify their own mining hosts before deployment.
 
 #### Updating Hosts
 
