@@ -57,7 +57,11 @@
       "Bash(ruby test:*)",
       "Bash(ruby test/installer/sudo_configurator_test.rb:*)",
       "Bash(ruby test/installer/directory_manager_test.rb:*)",
-      "Bash(ruby:*)"
+      "Bash(ruby:*)",
+      "Bash(for test_file in test/installer/*_test.rb)",
+      "Bash(do)",
+      "Bash(done)",
+      "Bash(for f in test/installer/*_test.rb)"
     ]
   }
 }
