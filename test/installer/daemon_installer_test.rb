@@ -8,6 +8,21 @@ class DaemonInstallerTest < Minitest::Test
     @logger = mock_logger
   end
 
+  def mock_xmrig_commands(xmrig_path: "/usr/bin/xmrig")
+    lambda do |*args|
+      cmd = args.join(' ')
+      if cmd.include?('which xmrig')
+        [xmrig_path + "\n", "", mock_status(true)]
+      elsif cmd.include?('--version') || args.include?('--version')
+        ["XMRig 6.18.0\n", "", mock_status(true)]
+      elsif cmd.include?('readlink') || args.include?('readlink')
+        [xmrig_path + "\n", "", mock_status(true)]
+      else
+        ["", "", mock_status(true)]
+      end
+    end
+  end
+
   def test_execute_success_when_daemon_installed
     with_temp_dir do |tmpdir|
       # Create a fake daemon source file
@@ -18,14 +33,7 @@ class DaemonInstallerTest < Minitest::Test
 
       @installer.stub :file_exists?, false do
         @installer.stub :file_executable?, false do
-          Open3.stub :capture3, lambda { |*args|
-            cmd = args.join(' ')
-            if cmd.include?('which xmrig')
-              ["/usr/bin/xmrig\n", "", mock_status(true)]
-            else
-              ["", "", mock_status(true)]
-            end
-          } do
+          Open3.stub :capture3, mock_xmrig_commands do
             result = @installer.execute
 
             assert result.success?
@@ -34,7 +42,7 @@ class DaemonInstallerTest < Minitest::Test
             # Verify all steps logged
             messages = @logger.messages.map { |_, msg| msg }
             assert messages.any? { |msg| msg.include?("XMRig found at") }
-            assert messages.any? { |msg| msg.include?("Symlink created") || msg.include?("standard location") }
+            assert messages.any? { |msg| msg.include?("XMRig validated") || msg.include?("standard location") }
             assert messages.any? { |msg| msg.include?("Orchestrator installed") }
             assert messages.any? { |msg| msg.include?("Daemon made executable") }
           end
@@ -87,16 +95,7 @@ class DaemonInstallerTest < Minitest::Test
 
       @installer.stub :file_exists?, false do
         @installer.stub :file_executable?, false do
-          Open3.stub :capture3, lambda { |*args|
-            cmd = args.join(' ')
-            if cmd.include?('which xmrig')
-              ["/opt/xmrig/xmrig\n", "", mock_status(true)]
-            elsif cmd.include?('ln -sf')
-              ["", "", mock_status(true)]
-            else
-              ["", "", mock_status(true)]
-            end
-          } do
+          Open3.stub :capture3, mock_xmrig_commands(xmrig_path: "/opt/xmrig/xmrig") do
             result = @installer.execute
 
             assert result.success?
@@ -118,14 +117,7 @@ class DaemonInstallerTest < Minitest::Test
 
       @installer.stub :file_exists?, false do
         @installer.stub :file_executable?, false do
-          Open3.stub :capture3, lambda { |*args|
-            cmd = args.join(' ')
-            if cmd.include?('which xmrig')
-              ["/usr/local/bin/xmrig\n", "", mock_status(true)]
-            else
-              ["", "", mock_status(true)]
-            end
-          } do
+          Open3.stub :capture3, mock_xmrig_commands(xmrig_path: "/usr/local/bin/xmrig") do
             result = @installer.execute
 
             assert result.success?
@@ -153,16 +145,7 @@ class DaemonInstallerTest < Minitest::Test
         file_exists_calls == 1 && path.include?('/usr/local/bin/xmrig')
       } do
         @installer.stub :file_executable?, false do
-          Open3.stub :capture3, lambda { |*args|
-            cmd = args.join(' ')
-            if cmd.include?('which xmrig')
-              ["/opt/xmrig/bin/xmrig\n", "", mock_status(true)]
-            elsif cmd.include?('readlink')
-              ["/opt/xmrig/bin/xmrig\n", "", mock_status(true)]  # Symlink points to correct location
-            else
-              ["", "", mock_status(true)]
-            end
-          } do
+          Open3.stub :capture3, mock_xmrig_commands(xmrig_path: "/opt/xmrig/bin/xmrig") do
             result = @installer.execute
 
             assert result.success?
@@ -188,7 +171,11 @@ class DaemonInstallerTest < Minitest::Test
             cmd = args.join(' ')
             if cmd.include?('which xmrig')
               ["/usr/bin/xmrig\n", "", mock_status(true)]
-            elsif cmd.include?('cp')
+            elsif cmd.include?('--version') || args.include?('--version')
+              ["XMRig 6.18.0\n", "", mock_status(true)]
+            elsif cmd.include?('readlink') || args.include?('readlink')
+              ["/usr/bin/xmrig\n", "", mock_status(true)]
+            elsif cmd.include?('cp') || args.include?('cp')
               ["", "Permission denied", mock_status(false)]
             else
               ["", "", mock_status(true)]
@@ -217,7 +204,11 @@ class DaemonInstallerTest < Minitest::Test
             cmd = args.join(' ')
             if cmd.include?('which xmrig')
               ["/usr/bin/xmrig\n", "", mock_status(true)]
-            elsif cmd.include?('chmod')
+            elsif cmd.include?('--version') || args.include?('--version')
+              ["XMRig 6.18.0\n", "", mock_status(true)]
+            elsif cmd.include?('readlink') || args.include?('readlink')
+              ["/usr/bin/xmrig\n", "", mock_status(true)]
+            elsif cmd.include?('chmod') || args.include?('chmod')
               ["", "Operation not permitted", mock_status(false)]
             else
               ["", "", mock_status(true)]

@@ -64,17 +64,12 @@ module Installer
         return Result.success("User '#{username}' already exists")
       end
 
-      result = run_command('sudo', 'useradd', '-r', '-s', '/bin/false', username)
+      result = sudo_execute('useradd', '-r', '-s', '/bin/false', username,
+                           error_prefix: "Failed to create user '#{username}'")
+      return result if result.failure?
 
-      if result[:success]
-        logger.info "   ✓ User '#{username}' created"
-        Result.success("User '#{username}' created")
-      else
-        Result.failure(
-          "Failed to create user '#{username}': #{result[:stderr]}",
-          data: { username: username, error: result[:stderr] }
-        )
-      end
+      logger.info "   ✓ User '#{username}' created"
+      Result.success("User '#{username}' created")
     end
 
     def create_deploy_group
@@ -83,17 +78,12 @@ module Installer
         return Result.success("Group '#{DEPLOY_GROUP}' already exists")
       end
 
-      result = run_command('sudo', 'groupadd', DEPLOY_GROUP)
+      result = sudo_execute('groupadd', DEPLOY_GROUP,
+                           error_prefix: "Failed to create group '#{DEPLOY_GROUP}'")
+      return result if result.failure?
 
-      if result[:success]
-        logger.info "   ✓ Created '#{DEPLOY_GROUP}' group"
-        Result.success("Created '#{DEPLOY_GROUP}' group")
-      else
-        Result.failure(
-          "Failed to create group '#{DEPLOY_GROUP}': #{result[:stderr]}",
-          data: { group: DEPLOY_GROUP, error: result[:stderr] }
-        )
-      end
+      logger.info "   ✓ Created '#{DEPLOY_GROUP}' group"
+      Result.success("Created '#{DEPLOY_GROUP}' group")
     end
 
     def add_user_to_group(username, group_name)
@@ -102,17 +92,12 @@ module Installer
         return Result.success("User '#{username}' already in group '#{group_name}'")
       end
 
-      result = run_command('sudo', 'usermod', '-a', '-G', group_name, username)
+      result = sudo_execute('usermod', '-a', '-G', group_name, username,
+                           error_prefix: "Failed to add user '#{username}' to group '#{group_name}'")
+      return result if result.failure?
 
-      if result[:success]
-        logger.info "   ✓ Added '#{username}' to '#{group_name}' group"
-        Result.success("Added '#{username}' to '#{group_name}' group")
-      else
-        Result.failure(
-          "Failed to add user '#{username}' to group '#{group_name}': #{result[:stderr]}",
-          data: { username: username, group: group_name, error: result[:stderr] }
-        )
-      end
+      logger.info "   ✓ Added '#{username}' to '#{group_name}' group"
+      Result.success("Added '#{username}' to '#{group_name}' group")
     end
   end
 end

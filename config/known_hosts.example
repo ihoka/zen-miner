@@ -1,0 +1,16 @@
+# SSH Known Hosts File
+#
+# This file stores SSH host keys for servers that are authorized to receive
+# orchestrator updates. Host keys prevent MITM attacks during deployment.
+#
+# Format: hostname ssh-rsa <key>
+#
+# To add hosts automatically:
+#   bin/update-orchestrators-ssh --add-hosts
+#
+# To list known hosts:
+#   bin/update-orchestrators-ssh --list-hosts
+#
+# Example entries:
+# mini-1.local ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQC...
+# mini-2.local ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQD...

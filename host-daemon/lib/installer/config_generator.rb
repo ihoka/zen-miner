@@ -24,7 +24,16 @@ module Installer
       wallet = ENV['MONERO_WALLET']
       worker_id = ENV['WORKER_ID']
       pool_url = ENV.fetch('POOL_URL', DEFAULT_POOL_URL)
-      cpu_max_threads = ENV.fetch('CPU_MAX_THREADS_HINT', DEFAULT_CPU_MAX_THREADS_HINT).to_i
+      cpu_max_threads_raw = ENV.fetch('CPU_MAX_THREADS_HINT', DEFAULT_CPU_MAX_THREADS_HINT)
+
+      # Validate and parse CPU threads
+      cpu_max_threads = validate_cpu_threads(cpu_max_threads_raw)
+      unless cpu_max_threads
+        return Result.failure(
+          "Invalid CPU_MAX_THREADS_HINT: must be between 1 and 256, got: #{cpu_max_threads_raw}",
+          data: { cpu_max_threads: cpu_max_threads_raw }
+        )
+      end
 
       # Validate wallet address
       unless valid_wallet?(wallet)
@@ -69,17 +78,41 @@ module Installer
       wallet =~ /\A4[0-9AB][0-9a-zA-Z]{93}\z/
     end
 
+    # Validate CPU thread count
+    # @param value [String, Integer] thread count to validate
+    # @return [Integer, nil] validated thread count or nil if invalid
+    def validate_cpu_threads(value)
+      threads = value.to_i
+
+      return nil unless threads.between?(1, 256)
+
+      threads
+    rescue => e
+      logger.error "CPU threads validation error: #{e.message}" if logger
+      nil
+    end
+
     # Validate pool URL against whitelist
-    # @param pool_url [String] mining pool URL
-    # @return [Boolean] true if pool is trusted
+    # @param pool_url [String] mining pool URL in format "host:port"
+    # @return [Boolean] true if pool is trusted and port is valid
     def valid_pool_url?(pool_url)
-      begin
-        # Parse the URL (might be "host:port" format)
-        host = pool_url.split(':').first
-        ALLOWED_POOLS.include?(host)
-      rescue
-        false
-      end
+      return false if pool_url.nil? || pool_url.empty?
+
+      # Parse host and port using regex for strict validation
+      match = pool_url.match(/\A([a-zA-Z0-9.-]+):(\d{1,5})\z/)
+      return false unless match
+
+      host = match[1]
+      port = match[2].to_i
+
+      # Validate port range (1-65535)
+      return false unless port.between?(1, 65535)
+
+      # Check against whitelist
+      ALLOWED_POOLS.include?(host)
+    rescue => e
+      logger.error "Pool URL validation error: #{e.message}" if logger
+      false
     end
 
     def generate_config(wallet, worker_id, pool_url, cpu_max_threads)

@@ -66,7 +66,13 @@
       "Bash(git ls-tree:*)",
       "Bash(gh pr list:*)",
       "Bash(do echo \"Testing: $f\")",
-      "Bash(tee:*)"
+      "Bash(tee:*)",
+      "Bash(claudekit list:*)",
+      "Bash(claudekit show:*)",
+      "Bash(rake test:*)",
+      "Bash(for test in test/installer/*_test.rb)",
+      "Bash(while read test)",
+      "Bash(do echo:*)"
     ]
   }
 }

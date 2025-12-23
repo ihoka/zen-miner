@@ -53,33 +53,18 @@ module Installer
 
       # Create directory if it doesn't exist
       unless file_exists?(path)
-        result = run_command('sudo', 'mkdir', '-p', path)
-        unless result[:success]
-          return Result.failure(
-            "Failed to create directory #{path}: #{result[:stderr]}",
-            data: { path: path, error: result[:stderr] }
-          )
-        end
+        result = sudo_execute('mkdir', '-p', path, error_prefix: "Failed to create directory #{path}")
+        return result if result.failure?
         logger.info "   ✓ Created directory #{path}"
       end
 
       # Set ownership
-      result = run_command('sudo', 'chown', "#{owner}:#{group}", path)
-      unless result[:success]
-        return Result.failure(
-          "Failed to set ownership for #{path}: #{result[:stderr]}",
-          data: { path: path, error: result[:stderr] }
-        )
-      end
+      result = sudo_execute('chown', "#{owner}:#{group}", path, error_prefix: "Failed to set ownership for #{path}")
+      return result if result.failure?
 
       # Set permissions
-      result = run_command('sudo', 'chmod', mode, path)
-      unless result[:success]
-        return Result.failure(
-          "Failed to set permissions for #{path}: #{result[:stderr]}",
-          data: { path: path, error: result[:stderr] }
-        )
-      end
+      result = sudo_execute('chmod', mode, path, error_prefix: "Failed to set permissions for #{path}")
+      return result if result.failure?
 
       logger.info "   ✓ Directory #{path} configured (#{owner}:#{group}, #{mode})" if file_exists?(path)
       Result.success("Directory #{path} configured")
@@ -93,33 +78,18 @@ module Installer
 
       # Create file if it doesn't exist
       unless file_exists?(path)
-        result = run_command('sudo', 'touch', path)
-        unless result[:success]
-          return Result.failure(
-            "Failed to create file #{path}: #{result[:stderr]}",
-            data: { path: path, error: result[:stderr] }
-          )
-        end
+        result = sudo_execute('touch', path, error_prefix: "Failed to create file #{path}")
+        return result if result.failure?
         logger.info "   ✓ Created file #{path}"
       end
 
       # Set ownership
-      result = run_command('sudo', 'chown', "#{owner}:#{group}", path)
-      unless result[:success]
-        return Result.failure(
-          "Failed to set ownership for #{path}: #{result[:stderr]}",
-          data: { path: path, error: result[:stderr] }
-        )
-      end
+      result = sudo_execute('chown', "#{owner}:#{group}", path, error_prefix: "Failed to set ownership for #{path}")
+      return result if result.failure?
 
       # Set permissions
-      result = run_command('sudo', 'chmod', mode, path)
-      unless result[:success]
-        return Result.failure(
-          "Failed to set permissions for #{path}: #{result[:stderr]}",
-          data: { path: path, error: result[:stderr] }
-        )
-      end
+      result = sudo_execute('chmod', mode, path, error_prefix: "Failed to set permissions for #{path}")
+      return result if result.failure?
 
       logger.info "   ✓ File #{path} configured (#{owner}:#{group}, #{mode})" if file_exists?(path)
       Result.success("File #{path} configured")

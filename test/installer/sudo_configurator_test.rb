@@ -10,26 +10,36 @@ class SudoConfiguratorTest < Minitest::Test
   end
 
   def test_execute_success_when_sudoers_configured
-    File.stub :open, lambda { |*args, &block|
+    original_umask = File.umask
+    File.stub :open, lambda { |path, *args, &block|
       # Mock file writing - just yield a mock file object
       mock_file = Object.new
       mock_file.define_singleton_method(:write) { |content| content.length }
       block.call(mock_file) if block
     } do
-      Open3.stub :capture3, lambda { |*args|
-        ["", "", mock_status(true)]
-      } do
-        File.stub :exist?, false do
-          result = @configurator.execute
+      File.stub :umask, lambda { |new_mask = nil| new_mask ? original_umask : original_umask } do
+        File.stub :unlink, lambda { |path| true } do
+          Open3.stub :capture3, lambda { |*args|
+            # Return appropriate stdout for stat command
+            if args.include?('stat')
+              ["root:root:440\n", "", mock_status(true)]
+            else
+              ["", "", mock_status(true)]
+            end
+          } do
+            File.stub :exist?, false do
+              result = @configurator.execute
 
-          assert result.success?
-          assert_equal "Sudo permissions configured", result.message
+              assert result.success?
+              assert_equal "Sudoers file installed securely", result.message
 
-          # Verify all steps were logged
-          messages = @logger.messages.map { |_, msg| msg }
-          assert messages.any? { |msg| msg.include?("Sudoers file written") }
-          assert messages.any? { |msg| msg.include?("Sudo permissions configured") }
-          assert messages.any? { |msg| msg.include?("Sudoers syntax validated") }
+              # Verify all steps were logged
+              messages = @logger.messages.map { |_, msg| msg }
+              assert messages.any? { |msg| msg.include?("Sudoers file written") }
+              assert messages.any? { |msg| msg.include?("Sudo permissions configured") }
+              assert messages.any? { |msg| msg.include?("Sudoers syntax validated") }
+            end
+          end
         end
       end
     end

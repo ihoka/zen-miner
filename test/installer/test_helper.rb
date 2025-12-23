@@ -33,6 +33,14 @@ module InstallerTestHelpers
 
     # Stub Open3.capture3 calls
     open3_stub = lambda do |*args|
+      # SECURITY: Verify commands are called with array form, not string interpolation
+      # This prevents shell injection vulnerabilities
+      if args.length == 1 && args[0].is_a?(String) && args[0].include?(' ')
+        raise SecurityError, "Command called with string interpolation instead of array form: #{args[0]}\n" \
+                           "Use: run_command('sudo', 'command', arg1, arg2)\n" \
+                           "Not: run_command('sudo command #{arg1} #{arg2}')"
+      end
+
       cmd_string = args.join(' ')
       open3_commands.each do |pattern, response|
         if pattern.is_a?(Regexp)
@@ -60,6 +68,11 @@ module InstallerTestHelpers
   # @param success [Boolean] whether command succeeds
   def mock_command(cmd_pattern, stdout: "", stderr: "", success: true)
     Open3.stub :capture3, lambda { |*args|
+      # SECURITY: Verify commands are called with array form, not string interpolation
+      if args.length == 1 && args[0].is_a?(String) && args[0].include?(' ')
+        raise SecurityError, "Command called with string interpolation instead of array form: #{args[0]}"
+      end
+
       cmd_string = args.join(' ')
       if cmd_pattern.is_a?(Regexp)
         return [stdout, stderr, mock_status(success)] if cmd_string =~ cmd_pattern

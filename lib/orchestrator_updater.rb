@@ -4,6 +4,10 @@ require "yaml"
 require "open3"
 require "optparse"
 require "shellwords"
+require "concurrent-ruby"
+require "timeout"
+require "fileutils"
+require "digest"
 
 module OrchestratorUpdater
   # Custom exceptions
@@ -51,6 +55,149 @@ module OrchestratorUpdater
     end
   end
 
+  # Manages SSH known hosts for secure host verification
+  class KnownHostsManager
+    KNOWN_HOSTS_FILE = "config/known_hosts"
+
+    # Verify a host's SSH fingerprint against known hosts
+    # @param hostname [String] hostname to verify
+    # @param ssh_user [String] SSH user for connection
+    # @return [Boolean] true if host key matches known hosts
+    def self.verify_host(hostname, ssh_user: "deploy")
+      return true unless File.exist?(KNOWN_HOSTS_FILE)
+
+      # Get current host key
+      current_key = get_host_key(hostname, ssh_user)
+      return false unless current_key
+
+      # Check against known hosts file
+      known_hosts = File.readlines(KNOWN_HOSTS_FILE, chomp: true)
+      known_hosts.any? { |line| line.start_with?(hostname) && line.include?(current_key) }
+    rescue => e
+      warn "Host key verification failed for #{hostname}: #{e.message}"
+      false
+    end
+
+    # Add a host to known hosts file
+    # @param hostname [String] hostname to add
+    # @param ssh_user [String] SSH user for connection
+    def self.add_host(hostname, ssh_user: "deploy")
+      # Get host key
+      host_key = get_host_key(hostname, ssh_user)
+      return false unless host_key
+
+      # Ensure config directory exists
+      FileUtils.mkdir_p(File.dirname(KNOWN_HOSTS_FILE))
+
+      # Create entry in known_hosts format
+      entry = "#{hostname} #{host_key}"
+
+      # Append to file (idempotent - won't add duplicates)
+      existing_content = File.exist?(KNOWN_HOSTS_FILE) ? File.read(KNOWN_HOSTS_FILE) : ""
+      unless existing_content.include?(entry)
+        File.open(KNOWN_HOSTS_FILE, 'a') do |f|
+          f.puts entry
+        end
+        puts "✓ Added #{hostname} to known hosts"
+      end
+
+      true
+    rescue => e
+      warn "Failed to add host #{hostname}: #{e.message}"
+      false
+    end
+
+    # Get SSH host key fingerprint
+    # @param hostname [String] hostname
+    # @param ssh_user [String] SSH user
+    # @return [String, nil] host key or nil if failed
+    def self.get_host_key(hostname, ssh_user)
+      # Use ssh-keyscan to get host key
+      stdout, stderr, status = Open3.capture3('ssh-keyscan', '-H', hostname)
+
+      unless status.success?
+        warn "ssh-keyscan failed for #{hostname}: #{stderr}"
+        return nil
+      end
+
+      # Parse the output - format is: "hostname algorithm key"
+      # ssh-keyscan returns hashed hostnames with -H flag
+      keys = stdout.lines.reject { |line| line.start_with?('#') }
+      return nil if keys.empty?
+
+      # Return first valid key
+      keys.first&.strip
+    rescue => e
+      warn "Failed to get host key for #{hostname}: #{e.message}"
+      nil
+    end
+
+    # List all known hosts
+    def self.list_hosts
+      return [] unless File.exist?(KNOWN_HOSTS_FILE)
+
+      File.readlines(KNOWN_HOSTS_FILE, chomp: true)
+        .reject { |line| line.strip.empty? || line.start_with?('#') }
+        .map { |line| line.split.first }
+        .compact
+    end
+  end
+
+  # Manages binary checksum verification for security
+  class ChecksumManager
+    # Calculate SHA256 checksum of a local file
+    # @param file_path [String] path to file
+    # @return [String] hex digest of SHA256 checksum
+    def self.calculate_local_checksum(file_path)
+      Digest::SHA256.file(file_path).hexdigest
+    rescue => e
+      warn "Failed to calculate checksum for #{file_path}: #{e.message}"
+      nil
+    end
+
+    # Verify checksum of a remote file via SSH
+    # @param hostname [String] hostname to check
+    # @param remote_path [String] path to file on remote host
+    # @param expected_checksum [String] expected SHA256 checksum
+    # @param ssh_user [String] SSH user for connection
+    # @return [Boolean] true if checksums match
+    def self.verify_remote_checksum(hostname, remote_path, expected_checksum, ssh_user: "deploy")
+      # Get checksum from remote host
+      stdout, stderr, status = Open3.capture3(
+        'ssh',
+        '-o', 'ConnectTimeout=5',
+        '-o', 'StrictHostKeyChecking=yes',
+        "#{ssh_user}@#{hostname}",
+        "sha256sum #{Shellwords.escape(remote_path)}"
+      )
+
+      unless status.success?
+        warn "Failed to get remote checksum from #{hostname}: #{stderr}"
+        return false
+      end
+
+      # Parse output: "checksum  filename"
+      remote_checksum = stdout.strip.split.first
+      remote_checksum == expected_checksum
+    rescue => e
+      warn "Checksum verification failed for #{hostname}: #{e.message}"
+      false
+    end
+
+    # Display checksum information
+    # @param file_path [String] path to file
+    # @param label [String] label for display
+    def self.display_checksum(file_path, label: "File")
+      checksum = calculate_local_checksum(file_path)
+      if checksum
+        puts "#{label}: #{file_path}"
+        puts "SHA256: #{checksum}"
+      else
+        puts "#{label}: #{file_path} (checksum calculation failed)"
+      end
+    end
+  end
+
   # Handles SSH operations for a single host
   class SSHExecutor
     attr_reader :hostname
@@ -76,6 +223,18 @@ module OrchestratorUpdater
       destination = "#{@temp_prefix}-#{@hostname}"
       _stdout, _stderr, status = scp(source_path, destination)
       status.success?
+    end
+
+    def verify_checksum(expected_checksum)
+      return true if @dry_run
+
+      temp_file = "#{@temp_prefix}-#{@hostname}"
+      ChecksumManager.verify_remote_checksum(
+        @hostname,
+        temp_file,
+        expected_checksum,
+        ssh_user: @ssh_user
+      )
     end
 
     def update_orchestrator
@@ -146,10 +305,14 @@ module OrchestratorUpdater
 
     def ssh(command)
       # Use array form to prevent shell interpretation
+      # Add timeout wrapper and connection monitoring
       ssh_args = [
+        'timeout', '300',  # 5 minute overall timeout
         'ssh',
         '-o', 'ConnectTimeout=5',
-        '-o', 'StrictHostKeyChecking=yes',  # Require known host key
+        '-o', 'ServerAliveInterval=5',    # Detect dead connections
+        '-o', 'ServerAliveCountMax=3',     # 3 failed keepalives = disconnect
+        '-o', 'StrictHostKeyChecking=yes', # Require known host key
         "#{@ssh_user}@#{@hostname}",
         command
       ]
@@ -183,12 +346,16 @@ module OrchestratorUpdater
   # Orchestrates updates across all hosts
   class UpdateCoordinator
     SOURCE_FILE = "host-daemon/xmrig-orchestrator"
+    MAX_OUTPUT_SIZE = 1024 * 100  # 100KB max per output to prevent memory issues
+
+    attr_reader :expected_checksum
 
     def initialize(hosts, options = {})
       @hosts = hosts
       @options = options
       @results = { success: [], failed: [] }
       @start_time = Time.now
+      @expected_checksum = nil
     end
 
     def run
@@ -205,17 +372,65 @@ module OrchestratorUpdater
     private
 
     def preflight_checks
-      # Verify source file exists
+      puts "Running preflight checks..."
+      puts
+
+      # Check 1: Verify source file exists
+      print "  Checking source file..."
       unless File.exist?(SOURCE_FILE)
+        puts " ✗ FAILED"
         puts "ERROR: Source file not found: #{SOURCE_FILE}"
         return false
       end
 
       if File.symlink?(SOURCE_FILE)
+        puts " ✗ FAILED"
         puts "ERROR: Source file is a symlink: #{SOURCE_FILE}"
         return false
       end
+      puts " ✓"
 
+      # Check 2: Calculate source file checksum
+      print "  Calculating checksum..."
+      @expected_checksum = ChecksumManager.calculate_local_checksum(SOURCE_FILE)
+      unless @expected_checksum
+        puts " ✗ FAILED"
+        puts "ERROR: Failed to calculate checksum for #{SOURCE_FILE}"
+        return false
+      end
+      puts " ✓"
+      puts "  SHA256: #{@expected_checksum}"
+
+      # Check 3: Verify SSH host keys (unless --skip-host-verification)
+      unless @options[:skip_host_verification]
+        print "  Checking SSH host keys..."
+        unknown_hosts = []
+
+        @hosts.each do |hostname|
+          unless KnownHostsManager.verify_host(hostname)
+            unknown_hosts << hostname
+          end
+        end
+
+        if unknown_hosts.any?
+          puts " ✗ FAILED"
+          puts
+          puts "ERROR: The following hosts are not in known_hosts file:"
+          unknown_hosts.each { |host| puts "  - #{host}" }
+          puts
+          puts "To add these hosts, run:"
+          puts "  bin/update-orchestrators-ssh --add-hosts"
+          puts
+          puts "Or skip this check with:"
+          puts "  bin/update-orchestrators-ssh --skip-host-verification"
+          return false
+        end
+        puts " ✓"
+      else
+        puts "  ⚠ Skipping host key verification (--skip-host-verification)"
+      end
+
+      puts
       true
     end
 
@@ -229,68 +444,129 @@ module OrchestratorUpdater
     end
 
     def update_all_hosts
-      @hosts.each do |hostname|
-        update_host(hostname)
+      # Use parallel execution for better performance
+      max_parallel = [@hosts.size, 10].min  # Max 10 concurrent updates
+
+      puts
+      puts "Deployment strategy: #{max_parallel} parallel workers"
+      puts
+
+      pool = Concurrent::FixedThreadPool.new(max_parallel, name: 'orchestrator-deploy')
+
+      futures = @hosts.map do |hostname|
+        Concurrent::Future.execute(executor: pool) do
+          update_host_with_error_handling(hostname)
+        end
       end
+
+      # Wait for all updates with timeout (10 minutes per host max)
+      futures.each_with_index do |future, index|
+        begin
+          future.value(600)  # 10 minute timeout per host
+        rescue Concurrent::TimeoutError
+          hostname = @hosts[index]
+          puts "✗ #{hostname} timed out after 10 minutes"
+          @results[:failed] << { host: hostname, reason: "Operation timed out" }
+        end
+      end
+    ensure
+      # Clean up thread pool
+      pool&.shutdown
+      pool&.wait_for_termination(30)
+    end
+
+    # Wrapper to handle exceptions during parallel execution
+    def update_host_with_error_handling(hostname)
+      update_host(hostname)
+    rescue => e
+      puts "✗ #{hostname} failed with exception: #{e.message}"
+      @results[:failed] << { host: hostname, reason: "Exception: #{e.message}" }
     end
 
     def update_host(hostname)
-      puts
-      puts "=" * 40
-      puts "Updating: #{hostname}"
-      puts "=" * 40
-
-      executor = SSHExecutor.new(hostname, dry_run: @options[:dry_run], verbose: @options[:verbose])
-      step_start = Time.now
-
-      # Step 1: Check connectivity
-      print "[#{timestamp}] Checking SSH connectivity..."
-      unless executor.check_connectivity
-        puts " ✗ FAILED"
-        @results[:failed] << { host: hostname, reason: "SSH connection failed" }
-        return
-      end
-      puts " ✓"
-
-      # Step 2: Copy orchestrator
-      print "[#{timestamp}] Copying orchestrator file..."
-      unless executor.copy_orchestrator(SOURCE_FILE)
-        puts " ✗ FAILED"
-        @results[:failed] << { host: hostname, reason: "SCP transfer failed" }
-        return
-      end
-      puts " ✓"
-
-      # Step 3: Execute update
-      print "[#{timestamp}] Executing update commands..."
-      result = executor.update_orchestrator
-      unless result[:success]
-        puts " ✗ FAILED"
+      # Wrap entire operation in timeout (5 minutes per host)
+      Timeout.timeout(300) do
         puts
-        puts "Output: #{result[:output]}" unless result[:output].empty?
-        puts "Error: #{result[:error]}" unless result[:error].empty?
-        @results[:failed] << { host: hostname, reason: "Update commands failed" }
-        return
+        puts "=" * 40
+        puts "Updating: #{hostname}"
+        puts "=" * 40
+
+        executor = SSHExecutor.new(hostname, dry_run: @options[:dry_run], verbose: @options[:verbose])
+        step_start = Time.now
+
+        # Step 1: Check connectivity
+        print "[#{timestamp}] Checking SSH connectivity..."
+        unless executor.check_connectivity
+          puts " ✗ FAILED"
+          @results[:failed] << { host: hostname, reason: "SSH connection failed" }
+          return
+        end
+        puts " ✓"
+
+        # Step 2: Copy orchestrator
+        print "[#{timestamp}] Copying orchestrator file..."
+        unless executor.copy_orchestrator(SOURCE_FILE)
+          puts " ✗ FAILED"
+          @results[:failed] << { host: hostname, reason: "SCP transfer failed" }
+          return
+        end
+        puts " ✓"
+
+        # Step 3: Verify checksum
+        print "[#{timestamp}] Verifying checksum..."
+        unless executor.verify_checksum(@expected_checksum)
+          puts " ✗ FAILED"
+          @results[:failed] << { host: hostname, reason: "Checksum verification failed" }
+          return
+        end
+        puts " ✓"
+
+        # Step 4: Execute update
+        print "[#{timestamp}] Executing update commands..."
+        result = executor.update_orchestrator
+        unless result[:success]
+          puts " ✗ FAILED"
+          puts
+          # Truncate output to prevent memory issues
+          output = truncate_output(result[:output], MAX_OUTPUT_SIZE)
+          error = truncate_output(result[:error], MAX_OUTPUT_SIZE)
+          puts "Output: #{output}" unless output.empty?
+          puts "Error: #{error}" unless error.empty?
+          @results[:failed] << { host: hostname, reason: "Update commands failed" }
+          return
+        end
+        puts " ✓"
+
+        # Print update output (truncated)
+        output = truncate_output(result[:output], MAX_OUTPUT_SIZE)
+        puts output unless output.empty?
+
+        # Step 5: Verify service
+        print "[#{timestamp}] Verifying service status..."
+        unless executor.verify_service
+          puts " ✗ FAILED"
+          @results[:failed] << { host: hostname, reason: "Service verification failed" }
+          return
+        end
+        puts " ✓"
+
+        elapsed = Time.now - step_start
+        puts
+        puts "✓ #{hostname} updated successfully (#{elapsed.round(1)}s)"
+
+        @results[:success] << hostname
       end
-      puts " ✓"
+    rescue Timeout::Error
+      puts " ✗ TIMEOUT"
+      @results[:failed] << { host: hostname, reason: "Operation timed out after 5 minutes" }
+    end
 
-      # Print update output
-      puts result[:output] unless result[:output].empty?
+    # Truncate output to prevent memory issues
+    def truncate_output(output, max_size)
+      return "" if output.nil? || output.empty?
+      return output if output.bytesize <= max_size
 
-      # Step 4: Verify service
-      print "[#{timestamp}] Verifying service status..."
-      unless executor.verify_service
-        puts " ✗ FAILED"
-        @results[:failed] << { host: hostname, reason: "Service verification failed" }
-        return
-      end
-      puts " ✓"
-
-      elapsed = Time.now - step_start
-      puts
-      puts "✓ #{hostname} updated successfully (#{elapsed.round(1)}s)"
-
-      @results[:success] << hostname
+      output[0...max_size] + "\n[Output truncated - exceeded #{max_size} bytes]"
     end
 
     def display_header
@@ -356,7 +632,52 @@ module OrchestratorUpdater
   class CLI
     def self.run(argv)
       options = parse_options(argv)
+
+      # Handle --show-checksum
+      if options[:show_checksum]
+        source_file = "host-daemon/xmrig-orchestrator"
+        unless File.exist?(source_file)
+          puts "ERROR: Source file not found: #{source_file}"
+          exit 1
+        end
+
+        puts
+        ChecksumManager.display_checksum(source_file, label: "Orchestrator binary")
+        puts
+        puts "This checksum will be verified on each host after deployment."
+        exit 0
+      end
+
+      # Handle --list-hosts
+      if options[:list_hosts]
+        puts "Known hosts:"
+        known = KnownHostsManager.list_hosts
+        if known.empty?
+          puts "  (none)"
+        else
+          known.each { |host| puts "  - #{host}" }
+        end
+        exit 0
+      end
+
       hosts = determine_hosts(options)
+
+      # Handle --add-hosts
+      if options[:add_hosts]
+        puts "Adding hosts to known_hosts file..."
+        puts
+        hosts.each do |hostname|
+          print "  #{hostname}..."
+          if KnownHostsManager.add_host(hostname)
+            puts " ✓"
+          else
+            puts " ✗ FAILED"
+          end
+        end
+        puts
+        puts "Done. Run without --add-hosts to deploy."
+        exit 0
+      end
 
       # Validate source file
       unless File.exist?("host-daemon/xmrig-orchestrator")
@@ -378,7 +699,11 @@ module OrchestratorUpdater
         host: nil,
         yes: false,
         dry_run: false,
-        verbose: false
+        verbose: false,
+        add_hosts: false,
+        skip_host_verification: false,
+        list_hosts: false,
+        show_checksum: false
       }
 
       OptionParser.new do |opts|
@@ -398,6 +723,22 @@ module OrchestratorUpdater
 
         opts.on("--verbose", "Show all SSH commands") do
           options[:verbose] = true
+        end
+
+        opts.on("--add-hosts", "Add all hosts to known_hosts file") do
+          options[:add_hosts] = true
+        end
+
+        opts.on("--list-hosts", "List all known hosts") do
+          options[:list_hosts] = true
+        end
+
+        opts.on("--show-checksum", "Display orchestrator binary checksum") do
+          options[:show_checksum] = true
+        end
+
+        opts.on("--skip-host-verification", "Skip SSH host key verification (INSECURE)") do
+          options[:skip_host_verification] = true
         end
 
         opts.on("-h", "--help", "Show this help message") do

@@ -86,5 +86,26 @@ module Installer
       actual_mode = File.stat(path).mode.to_s(8)[-4..]
       actual_mode == mode
     end
+
+    # Execute a command with sudo, returning a Result object
+    # This eliminates repeated error handling boilerplate
+    # @param command [String] command to execute
+    # @param args [Array<String>] command arguments
+    # @param error_prefix [String] prefix for error messages
+    # @return [Result] success with stdout or failure with stderr
+    def sudo_execute(command, *args, error_prefix: "Command failed")
+      result = run_command('sudo', command, *args)
+
+      return Result.success(result[:stdout].strip) if result[:success]
+
+      Result.failure(
+        "#{error_prefix}: #{result[:stderr]}",
+        data: {
+          command: [command, *args].join(' '),
+          stderr: result[:stderr],
+          stdout: result[:stdout]
+        }
+      )
+    end
   end
 end

@@ -71,29 +71,55 @@ module Installer
       xmrig_path = result[:stdout].strip
       logger.info "   ✓ XMRig found at: #{xmrig_path}"
 
+      # Validate the binary is actually XMRig
+      version_result = run_command(xmrig_path, '--version')
+      unless version_result[:success] && version_result[:stdout].include?('XMRig')
+        return Result.failure(
+          "Invalid XMRig binary at #{xmrig_path}: version check failed",
+          data: { path: xmrig_path, output: version_result[:stdout] }
+        )
+      end
+
+      # Get real path (resolve any symlinks)
+      real_path_result = run_command('readlink', '-f', xmrig_path)
+      unless real_path_result[:success]
+        return Result.failure(
+          "Failed to resolve real path for #{xmrig_path}",
+          data: { path: xmrig_path, error: real_path_result[:stderr] }
+        )
+      end
+
+      real_path = real_path_result[:stdout].strip
+
+      # Validate real path is in expected locations for security
+      allowed_prefixes = %w[/usr/bin /usr/local/bin /opt /home]
+      unless allowed_prefixes.any? { |prefix| real_path.start_with?(prefix) }
+        return Result.failure(
+          "XMRig binary in unexpected location: #{real_path}",
+          data: { real_path: real_path, xmrig_path: xmrig_path }
+        )
+      end
+
+      logger.info "   ✓ XMRig validated (real path: #{real_path})"
+
       # Create symlink if needed
       if xmrig_path != XMRIG_SYMLINK
         # Check if symlink already exists and points to correct location
         if file_exists?(XMRIG_SYMLINK)
           symlink_result = run_command('readlink', '-f', XMRIG_SYMLINK)
-          if symlink_result[:success] && symlink_result[:stdout].strip == xmrig_path
+          if symlink_result[:success] && symlink_result[:stdout].strip == real_path
             logger.info "   ✓ Symlink already points to correct location"
             return Result.success("Symlink verified")
           end
         end
 
-        # Create/update symlink
-        result = run_command('sudo', 'ln', '-sf', xmrig_path, XMRIG_SYMLINK)
+        # Create/update symlink using real path for security
+        result = sudo_execute('ln', '-sf', real_path, XMRIG_SYMLINK,
+                             error_prefix: "Failed to create symlink")
+        return result if result.failure?
 
-        if result[:success]
-          logger.info "   ✓ Symlink created: #{XMRIG_SYMLINK} -> #{xmrig_path}"
-          Result.success("XMRig symlink created")
-        else
-          Result.failure(
-            "Failed to create symlink: #{result[:stderr]}",
-            data: { source: xmrig_path, dest: XMRIG_SYMLINK, error: result[:stderr] }
-          )
-        end
+        logger.info "   ✓ Symlink created: #{XMRIG_SYMLINK} -> #{real_path}"
+        Result.success("XMRig symlink created")
       else
         logger.info "   ✓ XMRig already at standard location"
         Result.success("XMRig location verified")
@@ -101,31 +127,21 @@ module Installer
     end
 
     def install_daemon(source_path)
-      result = run_command('sudo', 'cp', source_path, DAEMON_DEST)
+      result = sudo_execute('cp', source_path, DAEMON_DEST,
+                           error_prefix: "Failed to install daemon")
+      return result if result.failure?
 
-      if result[:success]
-        logger.info "   ✓ Orchestrator installed to #{DAEMON_DEST}"
-        Result.success("Daemon installed")
-      else
-        Result.failure(
-          "Failed to install daemon: #{result[:stderr]}",
-          data: { source: source_path, dest: DAEMON_DEST, error: result[:stderr] }
-        )
-      end
+      logger.info "   ✓ Orchestrator installed to #{DAEMON_DEST}"
+      Result.success("Daemon installed")
     end
 
     def make_executable(path)
-      result = run_command('sudo', 'chmod', '+x', path)
+      result = sudo_execute('chmod', '+x', path,
+                           error_prefix: "Failed to make daemon executable")
+      return result if result.failure?
 
-      if result[:success]
-        logger.info "   ✓ Daemon made executable"
-        Result.success("Daemon executable")
-      else
-        Result.failure(
-          "Failed to make daemon executable: #{result[:stderr]}",
-          data: { path: path, error: result[:stderr] }
-        )
-      end
+      logger.info "   ✓ Daemon made executable"
+      Result.success("Daemon executable")
     end
 
     def file_executable?(path)

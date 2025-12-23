@@ -32,12 +32,18 @@ Docker Host
 
 ### Setup
 
+**⚠️  SECURITY WARNING:**
+- NEVER commit wallet addresses to version control
+- NEVER log or echo wallet addresses in scripts
+- Store sensitive values in environment variables or a secrets manager
+- Review changes to configuration files before committing
+
 1. **Set environment variables:**
    ```bash
-   export MONERO_WALLET="your-wallet-address"
-   export POOL_URL="pool.hashvault.pro:443"        # Optional, defaults to this
-   export CPU_MAX_THREADS_HINT="50"                # Optional, defaults to 50
-   export XMRIG_VERSION="6.21.0"                   # Optional, defaults to 6.21.0
+   export MONERO_WALLET="your-wallet-address"     # ⚠️  Keep secret!
+   export POOL_URL="pool.hashvault.pro:443"       # Optional, defaults to this
+   export CPU_MAX_THREADS_HINT="50"               # Optional, defaults to 50
+   export XMRIG_VERSION="6.21.0"                  # Optional, defaults to 6.21.0
    ```
 
 2. **Run installation script:**
