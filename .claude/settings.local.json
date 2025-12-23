@@ -53,7 +53,11 @@
       "Bash(echo:*)",
       "Bash(ruby test/installer/prerequisite_checker_test.rb:*)",
       "Bash(gem list:*)",
-      "Bash(bundle audit:*)"
+      "Bash(bundle audit:*)",
+      "Bash(ruby test:*)",
+      "Bash(ruby test/installer/sudo_configurator_test.rb:*)",
+      "Bash(ruby test/installer/directory_manager_test.rb:*)",
+      "Bash(ruby:*)"
     ]
   }
 }
