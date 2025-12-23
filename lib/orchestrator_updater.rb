@@ -28,14 +28,24 @@ module OrchestratorUpdater
     end
   end
 
-  # Validates hostname format (prevent injection)
+  # Validates hostname format (RFC 952/1123 compliant, prevents injection)
   class HostValidator
-    HOSTNAME_REGEX = /\A[a-zA-Z0-9][a-zA-Z0-9.-]{0,252}\z/
+    # Each label must:
+    # - Start with alphanumeric
+    # - End with alphanumeric
+    # - Contain only alphanumeric and hyphens in between
+    # - Be max 63 characters
+    LABEL_REGEX = /\A[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\z/
+    MAX_HOSTNAME_LENGTH = 253
 
     def self.valid?(hostname)
       return false if hostname.nil? || hostname.to_s.empty?
-      return false unless hostname.match?(HOSTNAME_REGEX)
-      return false if hostname.include?("..")
+      return false if hostname.length > MAX_HOSTNAME_LENGTH
+
+      # Split into labels and validate each one
+      labels = hostname.split('.')
+      return false if labels.empty?
+      return false if labels.any? { |label| !label.match?(LABEL_REGEX) }
 
       true
     end
@@ -135,22 +145,34 @@ module OrchestratorUpdater
     private
 
     def ssh(command)
-      escaped_host = Shellwords.escape(@hostname)
-      ssh_cmd = "ssh -o ConnectTimeout=5 -o StrictHostKeyChecking=accept-new #{@ssh_user}@#{escaped_host}"
-      full_cmd = "#{ssh_cmd} '#{command}'"
+      # Use array form to prevent shell interpretation
+      ssh_args = [
+        'ssh',
+        '-o', 'ConnectTimeout=5',
+        '-o', 'StrictHostKeyChecking=yes',  # Require known host key
+        "#{@ssh_user}@#{@hostname}",
+        command
+      ]
 
-      log_command(full_cmd) if @verbose
+      log_command(ssh_args.join(' ')) if @verbose
 
-      Open3.capture3(full_cmd)
+      Open3.capture3(*ssh_args)
     end
 
     def scp(source, destination)
-      escaped_host = Shellwords.escape(@hostname)
-      scp_cmd = "scp -q -o ConnectTimeout=5 -o StrictHostKeyChecking=accept-new #{source} #{@ssh_user}@#{escaped_host}:#{destination}"
+      # Use array form to prevent shell interpretation
+      scp_args = [
+        'scp',
+        '-q',
+        '-o', 'ConnectTimeout=5',
+        '-o', 'StrictHostKeyChecking=yes',  # Require known host key
+        source,
+        "#{@ssh_user}@#{@hostname}:#{destination}"
+      ]
 
-      log_command(scp_cmd) if @verbose
+      log_command(scp_args.join(' ')) if @verbose
 
-      Open3.capture3(scp_cmd)
+      Open3.capture3(*scp_args)
     end
 
     def log_command(command)

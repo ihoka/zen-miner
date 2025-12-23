@@ -51,14 +51,23 @@ module Installer
     # @param command [String] command name
     # @return [Boolean] true if command exists
     def command_exists?(command)
-      system("which #{command} > /dev/null 2>&1")
+      # Validate command name - only alphanumeric, underscores, and hyphens
+      return false unless command =~ /\A[a-z0-9_-]+\z/i
+      # Use array form to prevent shell injection
+      system("which", command, out: File::NULL, err: File::NULL)
     end
 
     # Check if a system user exists
     # @param username [String] username to check
     # @return [Boolean] true if user exists
     def user_exists?(username)
-      system("id #{username} > /dev/null 2>&1")
+      # Strict validation for POSIX usernames
+      # Must start with lowercase letter or underscore
+      # Can contain lowercase letters, digits, underscores, hyphens
+      # Max 32 characters (or 31 + $ for system accounts)
+      return false unless username =~ /\A[a-z_]([a-z0-9_-]{0,31}|[a-z0-9_-]{0,30}\$)\z/
+      # Use array form to prevent shell injection
+      system("id", username, out: File::NULL, err: File::NULL)
     end
 
     # Check if a file or directory exists

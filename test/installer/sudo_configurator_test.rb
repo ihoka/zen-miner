@@ -10,107 +10,127 @@ class SudoConfiguratorTest < Minitest::Test
   end
 
   def test_execute_success_when_sudoers_configured
-    Open3.stub :capture3, lambda { |*args|
-      ["", "", mock_status(true)]
+    File.stub :open, lambda { |*args, &block|
+      # Mock file writing - just yield a mock file object
+      mock_file = Object.new
+      mock_file.define_singleton_method(:write) { |content| content.length }
+      block.call(mock_file) if block
     } do
-      result = @configurator.execute
+      Open3.stub :capture3, lambda { |*args|
+        ["", "", mock_status(true)]
+      } do
+        File.stub :exist?, false do
+          result = @configurator.execute
 
-      assert result.success?
-      assert_equal "Sudo permissions configured", result.message
+          assert result.success?
+          assert_equal "Sudo permissions configured", result.message
 
-      # Verify all steps were logged
-      messages = @logger.messages.map { |_, msg| msg }
-      assert messages.any? { |msg| msg.include?("Sudoers file written") }
-      assert messages.any? { |msg| msg.include?("Sudo permissions configured") }
-      assert messages.any? { |msg| msg.include?("Sudoers syntax validated") }
+          # Verify all steps were logged
+          messages = @logger.messages.map { |_, msg| msg }
+          assert messages.any? { |msg| msg.include?("Sudoers file written") }
+          assert messages.any? { |msg| msg.include?("Sudo permissions configured") }
+          assert messages.any? { |msg| msg.include?("Sudoers syntax validated") }
+        end
+      end
     end
   end
 
   def test_execute_fails_when_write_fails
-    Open3.stub :capture3, lambda { |*args|
-      cmd = args.join(' ')
-      if cmd.include?('cat >')
-        ["", "Permission denied", mock_status(false)]
-      else
-        ["", "", mock_status(true)]
-      end
+    File.stub :open, lambda { |*args, &block|
+      raise Errno::EACCES, "Permission denied @ rb_sysopen - /etc/sudoers.d/xmrig-orchestrator.tmp.#{Process.pid}"
     } do
       result = @configurator.execute
 
       assert result.failure?
-      assert_includes result.message, "Failed to write sudoers file"
+      assert_includes result.message, "Failed to create sudoers file"
       assert_includes result.message, "Permission denied"
     end
   end
 
   def test_execute_fails_when_chmod_fails
-    Open3.stub :capture3, lambda { |*args|
-      cmd = args.join(' ')
-      if cmd.include?('chmod')
-        ["", "Operation not permitted", mock_status(false)]
-      else
-        ["", "", mock_status(true)]
-      end
-    } do
-      result = @configurator.execute
-
-      assert result.failure?
-      assert_includes result.message, "Failed to set permissions"
-    end
+    # This test is no longer relevant since we use File.open with mode parameter
+    # which sets permissions atomically during file creation
+    skip "chmod is now atomic with file creation"
   end
 
-  def test_execute_fails_when_mv_fails
-    Open3.stub :capture3, lambda { |*args|
-      cmd = args.join(' ')
-      if cmd.include?('mv')
-        ["", "Cannot move file", mock_status(false)]
-      else
-        ["", "", mock_status(true)]
-      end
+  def test_execute_fails_when_install_fails
+    File.stub :open, lambda { |*args, &block|
+      mock_file = Object.new
+      mock_file.define_singleton_method(:write) { |content| content.length }
+      block.call(mock_file) if block
     } do
-      result = @configurator.execute
+      Open3.stub :capture3, lambda { |*args|
+        cmd = args.join(' ')
+        if cmd.include?('install')
+          ["", "Cannot install file", mock_status(false)]
+        else
+          ["", "", mock_status(true)]
+        end
+      } do
+        File.stub :exist?, false do
+          result = @configurator.execute
 
-      assert result.failure?
-      assert_includes result.message, "Failed to move sudoers file"
+          assert result.failure?
+          assert_includes result.message, "Failed to install sudoers file"
+          assert_includes result.message, "Cannot install file"
+        end
+      end
     end
   end
 
   def test_execute_fails_when_visudo_validation_fails
-    Open3.stub :capture3, lambda { |*args|
-      cmd = args.join(' ')
-      if cmd.include?('visudo')
-        ["", "syntax error on line 2", mock_status(false)]
-      else
-        ["", "", mock_status(true)]
-      end
+    File.stub :open, lambda { |*args, &block|
+      mock_file = Object.new
+      mock_file.define_singleton_method(:write) { |content| content.length }
+      block.call(mock_file) if block
     } do
-      result = @configurator.execute
+      Open3.stub :capture3, lambda { |*args|
+        cmd = args.join(' ')
+        if cmd.include?('visudo')
+          ["", "syntax error on line 2", mock_status(false)]
+        else
+          ["", "", mock_status(true)]
+        end
+      } do
+        File.stub :exist?, true do
+          File.stub :unlink, nil do
+            result = @configurator.execute
 
-      assert result.failure?
-      assert_includes result.message, "Sudoers syntax validation failed"
-      assert_includes result.message, "syntax error"
+            assert result.failure?
+            assert_includes result.message, "Invalid sudoers syntax"
+            assert_includes result.message, "syntax error"
+          end
+        end
+      end
     end
   end
 
   def test_execute_removes_file_on_validation_failure
-    commands_run = []
+    file_unlinked = false
 
-    Open3.stub :capture3, lambda { |*args|
-      cmd = args.join(' ')
-      commands_run << cmd
-
-      if cmd.include?('visudo')
-        ["", "syntax error", mock_status(false)]
-      else
-        ["", "", mock_status(true)]
-      end
+    File.stub :open, lambda { |*args, &block|
+      mock_file = Object.new
+      mock_file.define_singleton_method(:write) { |content| content.length }
+      block.call(mock_file) if block
     } do
-      result = @configurator.execute
+      Open3.stub :capture3, lambda { |*args|
+        cmd = args.join(' ')
+        if cmd.include?('visudo')
+          ["", "syntax error", mock_status(false)]
+        else
+          ["", "", mock_status(true)]
+        end
+      } do
+        File.stub :exist?, true do
+          File.stub :unlink, lambda { |path| file_unlinked = true } do
+            result = @configurator.execute
 
-      assert result.failure?
-      # Verify that rm command was run after validation failure
-      assert commands_run.any? { |cmd| cmd.include?('rm') && cmd.include?('xmrig-orchestrator') },
-             "Expected rm command to clean up invalid sudoers file"
+            assert result.failure?
+            # Verify that File.unlink was called in ensure block
+            assert file_unlinked, "Expected temp file to be cleaned up after validation failure"
+          end
+        end
+      end
     end
   end
 

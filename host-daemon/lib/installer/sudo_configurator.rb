@@ -19,16 +19,8 @@ module Installer
     REQUIRED_MODE = '0440'
 
     def execute
-      # Write sudoers file
-      result = write_sudoers_file
-      return result if result.failure?
-
-      # Set correct permissions
-      result = set_permissions
-      return result if result.failure?
-
-      # Validate syntax
-      result = validate_sudoers_syntax
+      # Write sudoers file securely with atomic installation
+      result = write_and_install_sudoers_file
       return result if result.failure?
 
       Result.success("Sudo permissions configured")
@@ -40,60 +32,48 @@ module Installer
 
     private
 
-    def write_sudoers_file
-      # Write to temporary file first for safety
-      temp_file = "#{SUDOERS_FILE}.tmp"
+    def write_and_install_sudoers_file
+      # Create temp file path with process ID for uniqueness
+      temp_file_path = "#{SUDOERS_FILE}.tmp.#{Process.pid}"
 
-      # Create the file content
-      result = run_command('sudo', 'bash', '-c', "cat > #{temp_file} <<'EOF'\n#{SUDOERS_CONTENT}EOF")
+      begin
+        # Write content to temp file with secure permissions from the start
+        # This prevents TOCTOU race condition
+        File.open(temp_file_path, 'w', 0440) do |f|
+          f.write(SUDOERS_CONTENT)
+        end
 
-      if result[:success]
-        logger.info "   ✓ Sudoers file written to #{temp_file}"
-        Result.success("Sudoers file written")
-      else
-        Result.failure(
-          "Failed to write sudoers file: #{result[:stderr]}",
-          data: { file: temp_file, error: result[:stderr] }
-        )
-      end
-    end
+        logger.info "   ✓ Sudoers file written to #{temp_file_path}"
 
-    def set_permissions
-      temp_file = "#{SUDOERS_FILE}.tmp"
+        # Validate syntax before installing
+        result = run_command('sudo', 'visudo', '-c', '-f', temp_file_path)
+        unless result[:success]
+          return Result.failure("Invalid sudoers syntax: #{result[:stderr]}")
+        end
 
-      # Set permissions to 0440
-      result = run_command('sudo', 'chmod', REQUIRED_MODE, temp_file)
-      return Result.failure("Failed to set permissions: #{result[:stderr]}") unless result[:success]
-
-      # Move to final location
-      result = run_command('sudo', 'mv', temp_file, SUDOERS_FILE)
-
-      if result[:success]
-        logger.info "   ✓ Sudo permissions configured"
-        Result.success("Permissions set correctly")
-      else
-        Result.failure(
-          "Failed to move sudoers file to final location: #{result[:stderr]}",
-          data: { error: result[:stderr] }
-        )
-      end
-    end
-
-    def validate_sudoers_syntax
-      # Validate syntax with visudo
-      result = run_command('sudo', 'visudo', '-c', '-f', SUDOERS_FILE)
-
-      if result[:success]
         logger.info "   ✓ Sudoers syntax validated"
-        Result.success("Sudoers syntax valid")
-      else
-        # If validation fails, remove the file
-        run_command('sudo', 'rm', '-f', SUDOERS_FILE)
 
+        # Use sudo install for atomic move with proper ownership and permissions
+        result = run_command('sudo', 'install', '-m', '0440', '-o', 'root', '-g', 'root',
+                            temp_file_path, SUDOERS_FILE)
+
+        if result[:success]
+          logger.info "   ✓ Sudo permissions configured"
+          Result.success("Sudoers file installed securely")
+        else
+          Result.failure(
+            "Failed to install sudoers file: #{result[:stderr]}",
+            data: { error: result[:stderr] }
+          )
+        end
+      rescue => e
         Result.failure(
-          "Sudoers syntax validation failed: #{result[:stderr]}",
-          data: { error: result[:stderr] }
+          "Failed to create sudoers file: #{e.message}",
+          data: { file: temp_file_path, error: e.message }
         )
+      ensure
+        # Clean up temp file
+        File.unlink(temp_file_path) if File.exist?(temp_file_path) rescue nil
       end
     end
   end

@@ -61,7 +61,12 @@
       "Bash(for test_file in test/installer/*_test.rb)",
       "Bash(do)",
       "Bash(done)",
-      "Bash(for f in test/installer/*_test.rb)"
+      "Bash(for f in test/installer/*_test.rb)",
+      "Bash(find:*)",
+      "Bash(git ls-tree:*)",
+      "Bash(gh pr list:*)",
+      "Bash(do echo \"Testing: $f\")",
+      "Bash(tee:*)"
     ]
   }
 }

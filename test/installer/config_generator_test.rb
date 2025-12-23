@@ -40,7 +40,7 @@ class ConfigGeneratorTest < Minitest::Test
   end
 
   def test_execute_uses_custom_pool_url
-    with_env('MONERO_WALLET' => '4' + 'A' * 94, 'WORKER_ID' => 'worker-1', 'POOL_URL' => 'custom.pool.com:3333') do
+    with_env('MONERO_WALLET' => '4' + 'A' * 94, 'WORKER_ID' => 'worker-1', 'POOL_URL' => 'pool.supportxmr.com:3333') do
       written_content = nil
 
       Open3.stub :capture3, lambda { |*args|
@@ -55,7 +55,7 @@ class ConfigGeneratorTest < Minitest::Test
         assert result.success?
 
         config = JSON.parse(written_content)
-        assert_equal 'custom.pool.com:3333', config['pools'][0]['url']
+        assert_equal 'pool.supportxmr.com:3333', config['pools'][0]['url']
       end
     end
   end

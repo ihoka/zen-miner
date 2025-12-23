@@ -9,6 +9,9 @@ require "stringio"
 require_relative "../lib/orchestrator_updater"
 
 class ConfigTest < Minitest::Test
+  # Disable parallel execution for this test class to make stubbing work
+  parallelize(workers: 1) if respond_to?(:parallelize)
+
   def setup
     @valid_config = {
       "servers" => {
@@ -20,48 +23,82 @@ class ConfigTest < Minitest::Test
   end
 
   def test_load_hosts_from_valid_config
-    YAML.stub :load_file, @valid_config do
-      hosts = OrchestratorUpdater::Config.load_hosts
-      assert_equal ["mini-1", "miner-beta", "miner-gamma", "miner-delta"], hosts
-    end
+    # Create temporary config file with valid configuration
+    temp_file = "/tmp/valid_config_#{Process.pid}.yml"
+    File.write(temp_file, @valid_config.to_yaml)
+
+    original_path = OrchestratorUpdater::Config::CONFIG_PATH
+    OrchestratorUpdater::Config.const_set(:CONFIG_PATH, temp_file)
+
+    hosts = OrchestratorUpdater::Config.load_hosts
+    assert_equal ["mini-1", "miner-beta", "miner-gamma", "miner-delta"], hosts
+  ensure
+    OrchestratorUpdater::Config.const_set(:CONFIG_PATH, original_path) if original_path
+    File.unlink(temp_file) if temp_file && File.exist?(temp_file)
   end
 
   def test_load_hosts_missing_config
-    YAML.stub :load_file, ->(_) { raise Errno::ENOENT, "No such file" } do
-      error = assert_raises(OrchestratorUpdater::ConfigError) do
-        OrchestratorUpdater::Config.load_hosts
-      end
-      assert_match(/config.*not found/i, error.message)
+    # Temporarily change CONFIG_PATH to point to non-existent file
+    original_path = OrchestratorUpdater::Config::CONFIG_PATH
+    OrchestratorUpdater::Config.const_set(:CONFIG_PATH, "/tmp/nonexistent_config_#{Process.pid}.yml")
+
+    error = assert_raises(OrchestratorUpdater::ConfigError) do
+      OrchestratorUpdater::Config.load_hosts
     end
+    assert_match(/config.*not found/i, error.message)
+  ensure
+    OrchestratorUpdater::Config.const_set(:CONFIG_PATH, original_path) if original_path
   end
 
   def test_load_hosts_empty_config
-    empty_config = { "servers" => { "web" => { "hosts" => [] } } }
-    YAML.stub :load_file, empty_config do
-      error = assert_raises(OrchestratorUpdater::ConfigError) do
-        OrchestratorUpdater::Config.load_hosts
-      end
-      assert_match(/no hosts/i, error.message)
+    # Create temporary config file with empty hosts
+    temp_file = "/tmp/empty_config_#{Process.pid}.yml"
+    File.write(temp_file, { "servers" => { "web" => { "hosts" => [] } } }.to_yaml)
+
+    original_path = OrchestratorUpdater::Config::CONFIG_PATH
+    OrchestratorUpdater::Config.const_set(:CONFIG_PATH, temp_file)
+
+    error = assert_raises(OrchestratorUpdater::ConfigError) do
+      OrchestratorUpdater::Config.load_hosts
     end
+    assert_match(/no hosts/i, error.message)
+  ensure
+    OrchestratorUpdater::Config.const_set(:CONFIG_PATH, original_path) if original_path
+    File.unlink(temp_file) if temp_file && File.exist?(temp_file)
   end
 
   def test_load_hosts_invalid_yaml
-    YAML.stub :load_file, ->(_) { raise Psych::SyntaxError.new("", 0, 0, 0, "", "") } do
-      error = assert_raises(OrchestratorUpdater::ConfigError) do
-        OrchestratorUpdater::Config.load_hosts
-      end
-      assert_match(/invalid.*yaml/i, error.message)
+    # Create temporary file with invalid YAML
+    temp_file = "/tmp/invalid_yaml_#{Process.pid}.yml"
+    File.write(temp_file, "invalid: yaml: content: [unclosed")
+
+    original_path = OrchestratorUpdater::Config::CONFIG_PATH
+    OrchestratorUpdater::Config.const_set(:CONFIG_PATH, temp_file)
+
+    error = assert_raises(OrchestratorUpdater::ConfigError) do
+      OrchestratorUpdater::Config.load_hosts
     end
+    assert_match(/invalid.*yaml/i, error.message)
+  ensure
+    OrchestratorUpdater::Config.const_set(:CONFIG_PATH, original_path) if original_path
+    File.unlink(temp_file) if temp_file && File.exist?(temp_file)
   end
 
   def test_load_hosts_missing_servers_key
-    invalid_config = { "other" => "data" }
-    YAML.stub :load_file, invalid_config do
-      error = assert_raises(OrchestratorUpdater::ConfigError) do
-        OrchestratorUpdater::Config.load_hosts
-      end
-      assert_match(/no hosts/i, error.message)
+    # Create temporary config file without servers key
+    temp_file = "/tmp/no_servers_#{Process.pid}.yml"
+    File.write(temp_file, { "other" => "data" }.to_yaml)
+
+    original_path = OrchestratorUpdater::Config::CONFIG_PATH
+    OrchestratorUpdater::Config.const_set(:CONFIG_PATH, temp_file)
+
+    error = assert_raises(OrchestratorUpdater::ConfigError) do
+      OrchestratorUpdater::Config.load_hosts
     end
+    assert_match(/no hosts/i, error.message)
+  ensure
+    OrchestratorUpdater::Config.const_set(:CONFIG_PATH, original_path) if original_path
+    File.unlink(temp_file) if temp_file && File.exist?(temp_file)
   end
 end
 
@@ -98,13 +135,23 @@ class HostValidatorTest < Minitest::Test
   end
 
   def test_invalid_hostnames_length
-    # Test maximum length (253 chars DNS limit)
+    # Test maximum total length (253 chars DNS limit)
+    # But each label must be max 63 chars
     long_hostname = "a" * 254
     refute OrchestratorUpdater::HostValidator.valid?(long_hostname)
 
-    # Exactly 253 should be valid
-    max_hostname = "a" * 253
+    # Single label of 64+ chars should be invalid (exceeds 63 char label limit)
+    long_label = "a" * 64
+    refute OrchestratorUpdater::HostValidator.valid?(long_label)
+
+    # Valid: max 63 char labels, total exactly 253
+    # (63 + ".") * 3 + 61 = 64*3 + 61 = 192 + 61 = 253
+    max_hostname = ("a" * 63 + ".") * 3 + "a" * 61  # 253 chars total
     assert OrchestratorUpdater::HostValidator.valid?(max_hostname)
+
+    # Valid: exactly 63 char label
+    max_label = "a" * 63
+    assert OrchestratorUpdater::HostValidator.valid?(max_label)
   end
 
   def test_invalid_hostnames_empty
@@ -218,25 +265,31 @@ class SSHExecutorTest < Minitest::Test
   end
 
   def test_ssh_command_quoting
-    # Verify that SSH commands use proper quoting
-    # This test ensures Shellwords.escape is used
+    # Verify that SSH commands use array form (not string interpolation)
+    # This test ensures we're using Open3.capture3 with array arguments
     executor = OrchestratorUpdater::SSHExecutor.new("test-host")
 
-    # Mock Open3.capture3 and capture the command that was executed
-    executed_command = nil
-    Open3.stub :capture3, lambda { |cmd|
-      executed_command = cmd
+    # Mock Open3.capture3 and capture the arguments that were passed
+    executed_args = nil
+    Open3.stub :capture3, lambda { |*args|
+      executed_args = args
       ["ok", "", double_success_status]
     } do
       executor.check_connectivity
     end
 
-    # Command should contain properly quoted hostname
-    assert_match(/deploy@test-host/, executed_command)
-    # Should use SSH options
-    assert_match(/ConnectTimeout/, executed_command)
+    # Should pass array of arguments (safe from injection)
+    assert_kind_of Array, executed_args
+    assert_equal 'ssh', executed_args[0]
+
+    # Should contain SSH options
+    assert executed_args.include?('ConnectTimeout=5')
+
+    # Should contain user@host
+    assert executed_args.any? { |arg| arg.include?('deploy@test-host') }
+
     # Should contain the actual command
-    assert_match(/echo ok/, executed_command)
+    assert executed_args.include?('echo ok')
   end
 
   def test_dry_run_mode
