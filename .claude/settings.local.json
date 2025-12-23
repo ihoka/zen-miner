@@ -50,7 +50,10 @@
       "Bash(ruby test/update_orchestrator_test.rb:*)",
       "Bash(ruby -Itest -Ilib test/update_orchestrator_test.rb:*)",
       "Bash(timeout 10 ruby:*)",
-      "Bash(echo:*)"
+      "Bash(echo:*)",
+      "Bash(ruby test/installer/prerequisite_checker_test.rb:*)",
+      "Bash(gem list:*)",
+      "Bash(bundle audit:*)"
     ]
   }
 }

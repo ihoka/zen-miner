@@ -1,0 +1,36 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# XMRig Orchestrator Installation Script
+# Installs orchestrator daemon and systemd services
+# Prerequisites: Ruby and XMRig must be installed and in PATH
+
+require 'logger'
+require 'fileutils'
+
+# Set up logging to stdout
+logger = Logger.new($stdout)
+logger.level = Logger::INFO
+logger.formatter = proc do |severity, datetime, progname, msg|
+  "#{msg}\n"
+end
+
+# Load installer modules
+LIB_DIR = File.expand_path('lib/installer', __dir__)
+require_relative 'lib/installer/orchestrator'
+
+# Run installation
+begin
+  orchestrator = Installer::Orchestrator.new(logger: logger)
+  success = orchestrator.execute
+
+  exit(success ? 0 : 1)
+rescue Interrupt
+  logger.error "\n\nInstallation interrupted by user"
+  exit(1)
+rescue => e
+  logger.error "\n\nInstallation failed with unexpected error:"
+  logger.error "#{e.class}: #{e.message}"
+  logger.error e.backtrace.join("\n") if ENV['DEBUG']
+  exit(1)
+end

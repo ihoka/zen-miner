@@ -145,208 +145,86 @@ ID: 1, Action: start, Status: pending, Created: 2025-12-22 20:03:14 UTC
 │                                                  │
 │  1. Code changes in host-daemon/                │
 │  2. kamal deploy (Rails)                        │
-│  3. NEW: kamal app exec update-orchestrator.sh  │ ← New mechanism
+│  3. bin/update-orchestrators-ssh                │ ← Direct SSH (secure)
 └──────────────────┬──────────────────────────────┘
-                   │
+                   │ Direct SSH
                    ▼
 ┌─────────────────────────────────────────────────┐
 │ Remote Host (mini-1)                            │
 │                                                  │
 │  ┌────────────────────────────────────┐         │
 │  │ Rails Container                     │         │
-│  │ - Contains update-orchestrator.sh   │         │
-│  │ - Can write to /usr/local/bin/      │         │
+│  │ - NO host filesystem access         │         │
+│  │ - NO systemctl access               │         │
+│  │ - Principle of least privilege      │         │
+│  └────────────────────────────────────┘         │
+│                                                  │
+│  ┌────────────────────────────────────┐         │
+│  │ Update Process (via SSH)           │         │
+│  │ 1. SSH as 'deploy' user             │         │
+│  │ 2. Detect xmrig binary location    │         │
+│  │ 3. Create symlink if needed        │         │
+│  │ 4. Copy to /usr/local/bin/         │         │
+│  │ 5. Restart orchestrator service    │         │
 │  └────────────────────────────────────┘         │
 │                   │                              │
-│                   │ Executes on host             │
 │                   ▼                              │
 │  ┌────────────────────────────────────┐         │
-│  │ Update Script (Host-side)          │         │
-│  │ 1. Detect xmrig binary location    │         │
-│  │ 2. Update orchestrator daemon      │         │
-│  │ 3. Update xmrig.service path       │         │
-│  │ 4. Restart orchestrator service    │         │
-│  └────────────────────────────────────┘         │
-│                   │                              │
-│                   ▼                              │
-│  ┌────────────────────────────────────┐         │
-│  │ Orchestrator Daemon (CURRENT!)     │  ✓ WORKS
-│  │ - Queries: WHERE status = 'pending'│  ✓ COMPATIBLE
-│  │ - Auto-updated on deploy           │         │
+│  │ Orchestrator Daemon (UPDATED!)     │  ✓ WORKS
+│  │ - Current code from repository     │  ✓ COMPATIBLE
+│  │ - Compatible with new schema       │         │
 │  └────────────────────────────────────┘         │
 └─────────────────────────────────────────────────┘
 ```
 
 ### Implementation Approach
 
-**Objective**: Create an automated deployment mechanism that updates the orchestrator daemon on all hosts
+**Objective**: Create a secure automated deployment mechanism that updates the orchestrator daemon on all hosts via direct SSH
 
-**Implementation Files**:
+**Implementation Strategy**: Ruby-based SSH approach (NOT container-based)
 
-1. **`host-daemon/update-orchestrator.sh`** - Script to update orchestrator on current host
-2. **`bin/update-orchestrators`** - Rails script to deploy update across all hosts
-3. **Update to `install.sh`** - Add xmrig path detection
+This spec originally proposed a container-based approach using `kamal app exec` with bind mounts. That approach was **rejected due to security concerns** (containers should not have write access to host filesystem or systemctl permissions).
 
-**File 1: `host-daemon/update-orchestrator.sh`**
+**Implemented Solution**: Direct SSH from development machine
+
+For complete implementation details, see **[specs/ruby-orchestrator-update.md](ruby-orchestrator-update.md)** which documents:
+
+- Ruby module structure (`OrchestratorUpdater` with 5 classes)
+- Comprehensive unit tests (39 tests)
+- Security analysis and threat model
+- SSH-based update workflow
+- Hostname validation and injection prevention
+
+**Quick Summary**:
+
 ```bash
-#!/bin/bash
-# Updates the orchestrator daemon on the current host
-# Designed to be copied into Docker image and executed via kamal app exec
+# Update all hosts via SSH
+bin/update-orchestrators-ssh
 
-set -e
+# Update specific host
+bin/update-orchestrators-ssh --host mini-1 --yes
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-
-echo "=========================================="
-echo "Updating XMRig Orchestrator"
-echo "=========================================="
-echo "Host: $(hostname)"
-echo ""
-
-# Verify we're running with appropriate permissions
-if [ ! -w /usr/local/bin ]; then
-  echo "ERROR: Cannot write to /usr/local/bin"
-  echo "This script must run as root or with appropriate sudo"
-  exit 1
-fi
-
-# 1. Detect xmrig binary location
-echo "[1/4] Detecting xmrig binary location..."
-XMRIG_PATH=$(which xmrig 2>/dev/null || echo "")
-
-if [ -z "$XMRIG_PATH" ]; then
-  echo "   WARNING: xmrig not found in PATH"
-  echo "   Mining will not work until xmrig is installed"
-else
-  echo "   ✓ Found xmrig at: $XMRIG_PATH"
-
-  # Create symlink if needed
-  if [ "$XMRIG_PATH" != "/usr/local/bin/xmrig" ] && [ -f "$XMRIG_PATH" ]; then
-    echo "   Creating symlink: /usr/local/bin/xmrig -> $XMRIG_PATH"
-    ln -sf "$XMRIG_PATH" /usr/local/bin/xmrig
-    echo "   ✓ Symlink created"
-  fi
-fi
-
-# 2. Update orchestrator daemon
-echo "[2/4] Updating orchestrator daemon..."
-if [ -f "${SCRIPT_DIR}/xmrig-orchestrator" ]; then
-  cp "${SCRIPT_DIR}/xmrig-orchestrator" /usr/local/bin/xmrig-orchestrator
-  chmod +x /usr/local/bin/xmrig-orchestrator
-  echo "   ✓ Orchestrator updated"
-else
-  echo "   ERROR: xmrig-orchestrator not found in ${SCRIPT_DIR}"
-  exit 1
-fi
-
-# 3. Verify orchestrator service exists
-echo "[3/4] Verifying orchestrator service..."
-if ! systemctl list-unit-files | grep -q xmrig-orchestrator.service; then
-  echo "   ERROR: xmrig-orchestrator.service not found"
-  echo "   Run install.sh first to install the orchestrator"
-  exit 1
-fi
-echo "   ✓ Service file exists"
-
-# 4. Restart service
-echo "[4/4] Restarting orchestrator..."
-systemctl restart xmrig-orchestrator
-
-# Give it a moment to start
-sleep 2
-
-# Check status
-if systemctl is-active --quiet xmrig-orchestrator; then
-  echo "   ✓ Orchestrator is running"
-else
-  echo "   ✗ Orchestrator failed to start. Check logs:"
-  echo "     journalctl -u xmrig-orchestrator -n 50"
-  exit 1
-fi
-
-echo ""
-echo "=========================================="
-echo "Update Complete!"
-echo "=========================================="
-echo ""
-echo "Next steps:"
-echo "  - Check logs: journalctl -u xmrig-orchestrator -f"
-echo "  - Test command: Xmrig::CommandService.start_mining"
-echo ""
+# Dry run (show what would be executed)
+bin/update-orchestrators-ssh --dry-run
 ```
 
-**File 2: `bin/update-orchestrators`** - Rails script for mass update
-```bash
-#!/bin/bash
-# Deploy orchestrator updates to all hosts
-# Usage: bin/update-orchestrators
+**Key Security Improvements**:
+- ✅ No container bind mounts to `/usr/local/bin/`
+- ✅ No container systemctl access
+- ✅ Direct SSH from dev machine (standard remote administration)
+- ✅ Principle of least privilege maintained
+- ✅ Clear security boundary between deployment and runtime
 
-set -e
-
-echo "=========================================="
-echo "Deploying Orchestrator Updates"
-echo "=========================================="
-echo ""
-
-# Get list of hosts from Kamal config
-HOSTS=$(kamal config | grep -A 10 "hosts:" | grep "^  -" | awk '{print $2}')
-
-if [ -z "$HOSTS" ]; then
-  echo "ERROR: No hosts found in Kamal config"
-  exit 1
-fi
-
-echo "Updating orchestrators on:"
-for host in $HOSTS; do
-  echo "  - $host"
-done
-echo ""
-
-read -p "Continue? (y/N) " -n 1 -r
-echo
-if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-  echo "Aborted"
-  exit 1
-fi
-
-# Deploy to each host via Kamal
-for host in $HOSTS; do
-  echo ""
-  echo "===================="
-  echo "Updating: $host"
-  echo "===================="
-
-  # Execute update script on host
-  # Note: This runs in a container but the script has access to host via bind mounts
-  kamal app exec --hosts "$host" 'bash /rails/host-daemon/update-orchestrator.sh' || {
-    echo "✗ Failed to update $host"
-    exit 1
-  }
-
-  echo "✓ $host updated successfully"
-done
-
-echo ""
-echo "=========================================="
-echo "All Orchestrators Updated!"
-echo "=========================================="
-```
-
-**File 3: Update to `install.sh`** - Add xmrig detection
-```bash
-# Add after line 103 (after xmrig version check)
-
-# Detect xmrig installation path
-XMRIG_BINARY=$(which xmrig)
-echo "   ✓ XMRig found at: $XMRIG_BINARY"
-
-# Create symlink if xmrig is not in expected location
-if [ "$XMRIG_BINARY" != "/usr/local/bin/xmrig" ]; then
-  echo "   Creating symlink to standard location..."
-  sudo ln -sf "$XMRIG_BINARY" /usr/local/bin/xmrig
-  echo "   ✓ Symlink created: /usr/local/bin/xmrig -> $XMRIG_BINARY"
-fi
-```
+**Update Flow**:
+1. Parse hosts from `config/deploy.yml`
+2. For each host (sequentially):
+   - SSH as `deploy` user
+   - Copy orchestrator file to `/tmp/`
+   - Detect xmrig binary location and create symlink if needed
+   - Copy to `/usr/local/bin/xmrig-orchestrator`
+   - Restart `xmrig-orchestrator` service
+   - Verify service is active
+3. Display summary with success/failed hosts
 
 ### Code Structure and File Organization
 
@@ -356,13 +234,17 @@ zen-miner/
 │   ├── xmrig-orchestrator          # Daemon script (already exists)
 │   ├── xmrig-orchestrator.service  # systemd service (already exists)
 │   ├── xmrig.service              # systemd service (already exists)
-│   ├── install.sh                 # UPDATED: Add xmrig path detection
-│   ├── update-orchestrator.sh     # NEW: Update script for host
-│   └── README.md                  # UPDATED: Document update process
+│   ├── install.sh                 # Existing installation script
+│   └── README.md                  # UPDATED: Document SSH update process
+├── lib/
+│   └── orchestrator_updater.rb    # NEW: Ruby module with all update logic
 ├── bin/
-│   └── update-orchestrators       # NEW: Deploy updates to all hosts
+│   └── update-orchestrators-ssh   # NEW: SSH-based update script (executable)
+├── test/
+│   └── update_orchestrator_test.rb # NEW: Comprehensive unit tests (39 tests)
 └── specs/
-    └── fix-orchestrator-deployment-sync.md  # This spec
+    ├── fix-orchestrator-deployment-sync.md  # This spec
+    └── ruby-orchestrator-update.md          # NEW: Ruby implementation spec
 ```
 
 ### Database Schema - No Changes Required
@@ -533,147 +415,162 @@ No database migrations needed. This is purely a deployment synchronization issue
 
 ## Security Considerations
 
-### Security Implications
+### Why Direct SSH is More Secure
 
-1. **Script Execution Privileges**:
-   - Update script requires root access to write `/usr/local/bin/`
-   - Mitigated by: Script runs as root in Kamal exec context (already trusted)
+**Container-Based Approach (Rejected)**:
+1. **Container Escape Risk**: Containers with bind mounts to `/usr/local/bin/` can potentially escape to host
+2. **Excessive Privileges**: Rails container doesn't need systemctl access for normal operations
+3. **Attack Surface**: Compromised container gains host filesystem write access
+4. **Audit Trail**: Container-based actions harder to audit than SSH logs
+5. **Principle Violation**: Breaks principle of least privilege
 
-2. **Symlink Creation**:
-   - Creating symlink could theoretically be exploited if xmrig binary is malicious
-   - Mitigated by: Script verifies xmrig exists before symlinking
-   - Additional mitigation: Could add SHA256 checksum verification (future enhancement)
+**SSH-Based Approach (Implemented)**:
+1. **Standard Remote Administration**: Uses well-established SSH security model
+2. **Principle of Least Privilege**: Rails container has NO host access
+3. **Clear Security Boundary**: Deployment operations (SSH) vs runtime operations (container)
+4. **Better Auditing**: SSH logs provide clear audit trail of who updated what
+5. **Industry Standard**: Remote administration via SSH is a proven, secure pattern
 
-3. **Service Restart**:
-   - Restarting orchestrator could allow command injection if daemon code is malicious
-   - Mitigated by: Daemon code is reviewed and version-controlled
+### Security Safeguards
 
-### Safeguards
+1. **Hostname Validation**: Prevents injection attacks via regex `/\A[a-zA-Z0-9][a-zA-Z0-9.-]{0,252}\z/`
+   - Rejects: `mini-1; rm -rf /`, `../../../etc/passwd`, `mini 1` (with space)
+   - Accepts: `mini-1`, `miner-beta`, `host.example.com`
 
-1. **Fail-fast approach**: Script exits immediately on any error
-2. **Verification steps**: Checks service status after restart
-3. **Logging**: All actions logged to stdout for audit trail
-4. **No network access**: Script doesn't download anything from internet
+2. **SSH Command Quoting**: Uses `Shellwords.escape` for all dynamic values
+   - Prevents command injection via hostname or other parameters
+
+3. **File Verification**: Ensures source orchestrator file exists and is not a symlink before copying
+
+4. **Fail-Fast**: Exit immediately on critical errors (missing config, invalid hostname)
+
+5. **Per-Host Isolation**: Failure on one host doesn't stop updates to others
+
+6. **Service Verification**: Checks that orchestrator service is active after restart
+
+### Threat Model
+
+**Threats Mitigated**:
+- ✅ Command injection via hostname parameter
+- ✅ Path traversal attacks
+- ✅ Container escape to host
+- ✅ Unauthorized host filesystem access
+- ✅ Privilege escalation via container
+
+**Remaining Risks** (Accepted):
+- SSH key compromise (standard SSH risk, out of scope)
+- Malicious orchestrator code deployed (mitigated by code review)
+- Host compromise (SSH access required, but that's intentional for deployment)
 
 ---
 
 ## Documentation
 
-### Files to Create/Update
+### Documentation Updates (Completed)
 
-1. **`host-daemon/README.md`** - Add section:
-   ```markdown
-   ## Updating the Orchestrator Daemon
+The following documentation has been updated to reflect the SSH-based approach:
 
-   When code changes are made to the orchestrator daemon, it must be manually updated on all hosts since it runs outside the Docker container.
+1. **`host-daemon/README.md`** - ✅ Updated with SSH update instructions
+   - Documents `bin/update-orchestrators-ssh` usage
+   - Provides manual update fallback via SCP
+   - Explains when to update orchestrators
+   - Includes security note about direct SSH approach
 
-   ### Automated Update (Recommended)
+2. **`README.md`** - ✅ Updated deployment section
+   - Added "Updating Orchestrator Daemon" section
+   - Included deployment checklist
+   - Documents when orchestrator updates are needed
+   - References SSH-based approach
 
-   From your local machine:
-   ```bash
-   # Update all hosts at once
-   bin/update-orchestrators
-   ```
+3. **`specs/ruby-orchestrator-update.md`** - ✅ Created comprehensive implementation spec
+   - Documents Ruby module structure
+   - Includes 39 unit tests specification
+   - Security threat model and mitigations
+   - Design decisions and rationale
 
-   ### Manual Update (Single Host)
+### Key Documentation Points
 
-   SSH to the host and run:
-   ```bash
-   # Copy from repo
-   scp host-daemon/xmrig-orchestrator deploy@mini-1:/tmp/
+**When to Update Orchestrators**:
+- After database migrations affecting `xmrig_commands` or `xmrig_processes` tables
+- After changes to orchestrator code logic
+- After bug fixes in the daemon
+- If seeing "no such column" errors in orchestrator logs
 
-   # On the host
-   sudo cp /tmp/xmrig-orchestrator /usr/local/bin/
-   sudo chmod +x /usr/local/bin/xmrig-orchestrator
-   sudo systemctl restart xmrig-orchestrator
-   ```
-   ```
+**Deployment Workflow**:
+```bash
+# 1. Deploy Rails application
+bin/kamal deploy
 
-2. **`README.md`** - Update deployment section:
-   ```markdown
-   ## Deployment
+# 2. Update orchestrators if daemon code changed
+bin/update-orchestrators-ssh
 
-   ### Rails Application
-   ```bash
-   kamal deploy
-   ```
-
-   ### Host Orchestrator Daemon
-
-   After making changes to `host-daemon/xmrig-orchestrator`:
-   ```bash
-   bin/update-orchestrators
-   ```
-   ```
-
-3. **`docs/DEPLOYMENT.md`** - New comprehensive deployment guide
-
-### Inline Documentation
-
-All new scripts should include:
-- Header comment explaining purpose
-- Usage examples
-- Prerequisites
-- Expected behavior
-- Error scenarios
+# 3. Verify health
+bin/kamal logs
+ssh deploy@mini-1 'sudo systemctl status xmrig-orchestrator'
+```
 
 ---
 
 ## Implementation Phases
 
-### Phase 1: Automated Update Mechanism
+### Phase 1: Ruby Implementation ✅ COMPLETED
 
-**Objective**: Create deployment tooling to update the orchestrator on all hosts
+**Objective**: Create secure SSH-based deployment tooling
 
-**Steps**:
-1. Create `host-daemon/update-orchestrator.sh`
-2. Create `bin/update-orchestrators`
-3. Update `install.sh` with xmrig path detection
-4. Test on one host (mini-1)
-5. Deploy to all remaining hosts
+**Completed Steps**:
+1. ✅ Created `specs/ruby-orchestrator-update.md` - Comprehensive implementation spec
+2. ✅ Created `test/update_orchestrator_test.rb` - 39 unit tests (TDD approach)
+3. ✅ Created `lib/orchestrator_updater.rb` - Ruby module with 5 classes
+4. ✅ Created `bin/update-orchestrators-ssh` - Executable wrapper
+5. ✅ Deleted old insecure `bin/update-orchestrators` script
+6. ✅ Verified functionality via dry-run mode
 
-**Success Criteria**:
-- Update script works on all hosts
-- XMRig path automatically detected
-- Orchestrator updates without manual intervention
-- All hosts operational after update
-
-**Deliverables**:
-- ✓ Automated update mechanism working
-- ✓ All hosts updated and operational
-- ✓ Mining commands processing successfully
-
-### Phase 2: Documentation & Process Integration
-
-**Objective**: Integrate into standard deployment workflow
-
-**Steps**:
-1. Update `host-daemon/README.md` with update process
-2. Update main `README.md` deployment section
-3. Create deployment runbook
-4. Document when to run orchestrator updates
-
-**Success Criteria**:
-- Team knows when to run update-orchestrators
-- Process documented clearly
-- Future schema changes won't break orchestrator
+**Success Criteria Met**:
+- ✅ Update script uses direct SSH (not container-based)
+- ✅ Hostname validation prevents injection attacks
+- ✅ XMRig path automatically detected
+- ✅ Comprehensive unit test coverage
+- ✅ Security boundaries maintained (containers have NO host access)
 
 **Deliverables**:
-- ✓ Documentation complete
-- ✓ Deployment runbook created
+- ✅ Ruby-based SSH update mechanism working
+- ✅ 39 unit tests passing
+- ✅ Security vulnerabilities eliminated
+
+### Phase 2: Documentation ✅ COMPLETED
+
+**Objective**: Document SSH-based approach and update existing specs
+
+**Completed Steps**:
+1. ✅ Updated `host-daemon/README.md` with SSH update process
+2. ✅ Updated main `README.md` deployment section
+3. ✅ Updated this spec to remove container-based approach
+4. ✅ Created deployment workflow documentation
+
+**Success Criteria Met**:
+- ✅ Clear documentation of when to run orchestrator updates
+- ✅ SSH-based approach documented
+- ✅ Security improvements explained
+
+**Deliverables**:
+- ✅ Documentation complete
+- ✅ Deployment workflow documented
 
 ---
 
 ## Open Questions
 
-### Q1: Should orchestrator updates be fully automated as part of `kamal deploy`?
+### Q1: Should orchestrator updates be fully automated as part of `kamal deploy`? ✅ RESOLVED
 
-**Options**:
-1. **Manual trigger** (current proposal): Requires running `bin/update-orchestrators` separately
-2. **Automatic with confirmation**: `kamal deploy` detects changes and prompts
-3. **Fully automatic**: Always updates orchestrator on every deploy
+**Decision**: Manual trigger via `bin/update-orchestrators-ssh`
 
-**Recommendation**: Start with manual trigger (option 1) for safety, consider automation later based on stability.
+**Rationale**:
+- Explicit control over deployment steps
+- Clear separation of concerns (Rails deployment vs daemon updates)
+- Allows testing Rails changes before updating orchestrators
+- User preference for manual control (from user feedback)
+
+**Status**: Implemented and documented
 
 ### Q2: Should we add version checking to detect mismatches?
 
@@ -793,26 +690,28 @@ All new scripts should include:
 
 ## Implementation Checklist
 
-### Pre-Implementation
-- [ ] Review spec with team
-- [ ] Confirm approach for multi-host safety
-- [ ] Verify all 4 hosts are accessible via SSH
+### Pre-Implementation ✅ COMPLETED
+- [x] Review spec with team (user approved SSH approach)
+- [x] Confirm approach for multi-host safety (sequential updates, per-host isolation)
+- [x] Verify all 4 hosts are accessible via SSH (config/deploy.yml verified)
 
-### Phase 1: Automated Updates
-- [ ] Create `host-daemon/update-orchestrator.sh`
-- [ ] Create `bin/update-orchestrators`
-- [ ] Update `install.sh` with xmrig detection
-- [ ] Test on single host (mini-1)
-- [ ] Deploy to all hosts
-- [ ] Verify all hosts operational
+### Phase 1: Ruby Implementation ✅ COMPLETED
+- [x] Create `specs/ruby-orchestrator-update.md` (comprehensive spec)
+- [x] Create `test/update_orchestrator_test.rb` (39 unit tests)
+- [x] Create `lib/orchestrator_updater.rb` (Ruby module)
+- [x] Create `bin/update-orchestrators-ssh` (executable wrapper)
+- [x] Delete old insecure `bin/update-orchestrators`
+- [x] Test via dry-run mode
+- [x] Verify all security safeguards implemented
 
-### Phase 2: Documentation
-- [ ] Update `host-daemon/README.md`
-- [ ] Update main `README.md`
-- [ ] Create deployment runbook
-- [ ] Add to development guide
+### Phase 2: Documentation ✅ COMPLETED
+- [x] Update `host-daemon/README.md` (SSH update process)
+- [x] Update main `README.md` (deployment section with checklist)
+- [x] Update this spec (remove container-based approach)
+- [x] Document deployment workflow
 
-### Post-Implementation
+### Post-Implementation (Pending Production Deployment)
+- [ ] Deploy to all hosts via `bin/update-orchestrators-ssh`
 - [ ] Monitor logs for 24 hours
 - [ ] Verify health checks running
 - [ ] Confirm mining performance

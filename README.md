@@ -196,18 +196,43 @@ Xmrig::CommandService.stop_mining(reason: 'maintenance')
 Xmrig::CommandService.restart_mining(reason: 'config_change')
 ```
 
-### Database Migration Between Deployments
+### Updating Orchestrator Daemon
 
-When deploying Rails updates with database migrations:
+After making changes to `host-daemon/xmrig-orchestrator`, update all hosts:
 
 ```bash
-# 1. Deploy Rails app (migrations run automatically)
+# Update all hosts via SSH
+bin/update-orchestrators-ssh
+
+# Update specific host
+bin/update-orchestrators-ssh --host mini-1 --yes
+
+# Dry run (show what would be executed)
+bin/update-orchestrators-ssh --dry-run
+```
+
+**When to update orchestrators:**
+- After database migrations affecting `xmrig_commands` or `xmrig_processes` tables
+- After changes to orchestrator code logic
+- After bug fixes in the daemon
+- If seeing "no such column" errors in orchestrator logs
+
+**Note:** The update script uses direct SSH (not container-based) for security. Rails containers never have write access to the host filesystem.
+
+### Deployment Checklist
+
+When deploying changes:
+
+```bash
+# 1. Deploy Rails application
 bin/kamal deploy
 
-# 2. Restart orchestrator daemons on each host to pick up schema changes
-ssh host1 'sudo systemctl restart xmrig-orchestrator'
-ssh host2 'sudo systemctl restart xmrig-orchestrator'
-# ... repeat for all hosts
+# 2. Update orchestrators if daemon code changed
+bin/update-orchestrators-ssh
+
+# 3. Verify health
+bin/kamal logs
+ssh deploy@mini-1 'sudo systemctl status xmrig-orchestrator'
 ```
 
 ### Volume Mount Configuration

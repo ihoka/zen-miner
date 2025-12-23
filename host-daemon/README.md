@@ -114,55 +114,99 @@ curl http://127.0.0.1:8080/2/summary | jq
 
 ## Updating the Orchestrator Daemon
 
-When code changes are made to the orchestrator daemon, it must be manually updated on all hosts since it runs outside the Docker container.
+When code changes are made to the orchestrator daemon (`host-daemon/xmrig-orchestrator`), you must update all deployed hosts since the orchestrator runs outside the Docker container.
 
-### Automated Update (Recommended)
+### Automated Update via SSH (Recommended)
 
-From your local machine:
+From your local development machine:
+
 ```bash
-# Update all hosts at once
-bin/update-orchestrators
+# Update all hosts
+bin/update-orchestrators-ssh
+
+# Update specific host without confirmation
+bin/update-orchestrators-ssh --host mini-1 --yes
+
+# Dry run (show what would be executed)
+bin/update-orchestrators-ssh --dry-run
+
+# Verbose mode (show all SSH commands)
+bin/update-orchestrators-ssh --verbose
 ```
 
-This script will:
-1. Detect xmrig binary location and create symlinks if needed
-2. Copy the latest orchestrator code to each host
-3. Restart the orchestrator service
-4. Verify successful restart
+**What the script does:**
+1. SSHs to each host as `deploy` user
+2. Detects xmrig binary location and creates symlink if needed
+3. Copies the latest orchestrator daemon to `/usr/local/bin/`
+4. Restarts the `xmrig-orchestrator` service
+5. Verifies successful restart
+
+**Output example:**
+```
+============================================================
+XMRig Orchestrator Update (via SSH)
+============================================================
+
+Hosts to update:
+  - mini-1
+  - miner-beta
+  - miner-gamma
+  - miner-delta
+
+Continue? [y/N]: y
+
+[12:45:01] Updating mini-1...
+[12:45:06] ✓ mini-1 updated successfully (5s)
+
+Success: 4 hosts
+```
 
 ### Manual Update (Single Host)
 
-If you need to update a specific host:
+If you prefer to update a single host manually:
 
 ```bash
-# Via kamal
-kamal app exec --hosts mini-1 'bash /rails/host-daemon/update-orchestrator.sh'
+# From local dev machine
+scp host-daemon/xmrig-orchestrator deploy@mini-1:/tmp/
 
-# Or via SSH
-ssh deploy@mini-1 'sudo bash /path/to/update-orchestrator.sh'
+# SSH to host
+ssh deploy@mini-1
+
+# On the host
+sudo cp /tmp/xmrig-orchestrator /usr/local/bin/xmrig-orchestrator
+sudo chmod +x /usr/local/bin/xmrig-orchestrator
+sudo systemctl restart xmrig-orchestrator
+sudo systemctl status xmrig-orchestrator
 ```
 
 ### When to Update
 
-Update the orchestrator daemon when:
-- Database schema changes affect `xmrig_commands` or `xmrig_processes` tables
-- Orchestrator code logic changes (polling, health checks, command processing)
-- systemd service configuration changes
+Update the orchestrator daemon after:
+- Database schema changes affecting `xmrig_commands` or `xmrig_processes` tables
+- Changes to orchestrator logic or command processing
+- Bug fixes in the daemon code
+- XMRig API endpoint changes
 - After seeing "no such column" or other SQLite errors in orchestrator logs
 
 ### Verification
 
 After updating, verify the orchestrator is running correctly:
+
 ```bash
-# Check service status
-kamal app exec --hosts mini-1 'systemctl status xmrig-orchestrator'
+# Check service status on all hosts
+for host in mini-1 miner-beta miner-gamma miner-delta; do
+  echo "=== $host ==="
+  ssh deploy@$host 'sudo systemctl status xmrig-orchestrator'
+done
 
 # Check recent logs
-kamal app exec --hosts mini-1 'journalctl -u xmrig-orchestrator -n 50'
+ssh deploy@mini-1 'sudo journalctl -u xmrig-orchestrator -n 50'
 
 # Verify no errors
-kamal app exec --hosts mini-1 'grep -i error /var/log/xmrig/orchestrator.log | tail -20'
+ssh deploy@mini-1 'sudo grep -i error /var/log/xmrig/orchestrator.log | tail -20'
 ```
+
+**Security Note:** The update script uses direct SSH (not container-based) to maintain security boundaries. The Rails container never has write access to the host filesystem.
 
 ## Health Monitoring
 
