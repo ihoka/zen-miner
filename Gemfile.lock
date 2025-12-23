@@ -397,6 +397,7 @@ DEPENDENCIES
   bundler-audit
   capybara
   cloudflare-rails
+  concurrent-ruby (~> 1.2)
   debug
   image_processing (~> 1.2)
   importmap-rails

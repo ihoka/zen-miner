@@ -32,12 +32,18 @@ Docker Host
 
 ### Setup
 
+**⚠️  SECURITY WARNING:**
+- NEVER commit wallet addresses to version control
+- NEVER log or echo wallet addresses in scripts
+- Store sensitive values in environment variables or a secrets manager
+- Review changes to configuration files before committing
+
 1. **Set environment variables:**
    ```bash
-   export MONERO_WALLET="your-wallet-address"
-   export POOL_URL="pool.hashvault.pro:443"        # Optional, defaults to this
-   export CPU_MAX_THREADS_HINT="50"                # Optional, defaults to 50
-   export XMRIG_VERSION="6.21.0"                   # Optional, defaults to 6.21.0
+   export MONERO_WALLET="your-wallet-address"     # ⚠️  Keep secret!
+   export POOL_URL="pool.hashvault.pro:443"       # Optional, defaults to this
+   export CPU_MAX_THREADS_HINT="50"               # Optional, defaults to 50
+   export XMRIG_VERSION="6.21.0"                  # Optional, defaults to 6.21.0
    ```
 
 2. **Run installation script:**
@@ -111,6 +117,102 @@ sudo journalctl -u xmrig -f
 # XMRig API
 curl http://127.0.0.1:8080/2/summary | jq
 ```
+
+## Updating the Orchestrator Daemon
+
+When code changes are made to the orchestrator daemon (`host-daemon/xmrig-orchestrator`), you must update all deployed hosts since the orchestrator runs outside the Docker container.
+
+### Automated Update via SSH (Recommended)
+
+From your local development machine:
+
+```bash
+# Update all hosts
+bin/update-orchestrators-ssh
+
+# Update specific host without confirmation
+bin/update-orchestrators-ssh --host mini-1 --yes
+
+# Dry run (show what would be executed)
+bin/update-orchestrators-ssh --dry-run
+
+# Verbose mode (show all SSH commands)
+bin/update-orchestrators-ssh --verbose
+```
+
+**What the script does:**
+1. SSHs to each host as `deploy` user
+2. Detects xmrig binary location and creates symlink if needed
+3. Copies the latest orchestrator daemon to `/usr/local/bin/`
+4. Restarts the `xmrig-orchestrator` service
+5. Verifies successful restart
+
+**Output example:**
+```
+============================================================
+XMRig Orchestrator Update (via SSH)
+============================================================
+
+Hosts to update:
+  - mini-1
+  - miner-beta
+  - miner-gamma
+  - miner-delta
+
+Continue? [y/N]: y
+
+[12:45:01] Updating mini-1...
+[12:45:06] ✓ mini-1 updated successfully (5s)
+
+Success: 4 hosts
+```
+
+### Manual Update (Single Host)
+
+If you prefer to update a single host manually:
+
+```bash
+# From local dev machine
+scp host-daemon/xmrig-orchestrator deploy@mini-1:/tmp/
+
+# SSH to host
+ssh deploy@mini-1
+
+# On the host
+sudo cp /tmp/xmrig-orchestrator /usr/local/bin/xmrig-orchestrator
+sudo chmod +x /usr/local/bin/xmrig-orchestrator
+sudo systemctl restart xmrig-orchestrator
+sudo systemctl status xmrig-orchestrator
+```
+
+### When to Update
+
+Update the orchestrator daemon after:
+- Database schema changes affecting `xmrig_commands` or `xmrig_processes` tables
+- Changes to orchestrator logic or command processing
+- Bug fixes in the daemon code
+- XMRig API endpoint changes
+- After seeing "no such column" or other SQLite errors in orchestrator logs
+
+### Verification
+
+After updating, verify the orchestrator is running correctly:
+
+```bash
+# Check service status on all hosts
+for host in mini-1 miner-beta miner-gamma miner-delta; do
+  echo "=== $host ==="
+  ssh deploy@$host 'sudo systemctl status xmrig-orchestrator'
+done
+
+# Check recent logs
+ssh deploy@mini-1 'sudo journalctl -u xmrig-orchestrator -n 50'
+
+# Verify no errors
+ssh deploy@mini-1 'sudo grep -i error /var/log/xmrig/orchestrator.log | tail -20'
+```
+
+**Security Note:** The update script uses direct SSH (not container-based) to maintain security boundaries. The Rails container never has write access to the host filesystem.
 
 ## Health Monitoring
 

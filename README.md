@@ -148,11 +148,16 @@ xmrig --version # Should show XMRig installation
 git clone https://github.com/yourusername/zen-miner.git
 cd zen-miner/host-daemon
 
+# ⚠️  SECURITY WARNING ⚠️
+# NEVER commit wallet addresses to version control
+# NEVER echo these values in scripts or logs
+# Store wallet addresses securely (use environment variables or secrets manager)
+
 # Set required environment variables
-export MONERO_WALLET="your-monero-wallet-address"
-export WORKER_ID="unique-worker-id"       # Unique identifier for this host
-export POOL_URL="pool.hashvault.pro:443"  # Optional
-export CPU_MAX_THREADS_HINT="50"          # Optional
+export MONERO_WALLET="your-monero-wallet-address"  # ⚠️  Keep secret!
+export WORKER_ID="unique-worker-id"                # Unique identifier for this host
+export POOL_URL="pool.hashvault.pro:443"           # Optional
+export CPU_MAX_THREADS_HINT="50"                   # Optional
 
 # Run installation script as root
 sudo ./install.sh
@@ -196,18 +201,90 @@ Xmrig::CommandService.stop_mining(reason: 'maintenance')
 Xmrig::CommandService.restart_mining(reason: 'config_change')
 ```
 
-### Database Migration Between Deployments
+### Updating Orchestrator Daemon
 
-When deploying Rails updates with database migrations:
+After making changes to `host-daemon/xmrig-orchestrator`, update all hosts:
+
+#### First Time Setup: Add SSH Host Keys
+
+For security, SSH host keys must be verified before deployment:
 
 ```bash
-# 1. Deploy Rails app (migrations run automatically)
+# Add all configured hosts to known_hosts (first time only)
+bin/update-orchestrators-ssh --add-hosts
+
+# Or list currently known hosts
+bin/update-orchestrators-ssh --list-hosts
+```
+
+**⚠️ Security Note:** SSH host keys are stored in `~/.ssh/known_hosts` (standard SSH location) to prevent MITM attacks. Each user must verify their own mining hosts before deployment.
+
+#### Updating Hosts
+
+```bash
+# Update all hosts via SSH (with host key verification)
+bin/update-orchestrators-ssh
+
+# Update specific host
+bin/update-orchestrators-ssh --host mini-1 --yes
+
+# Dry run (show what would be executed)
+bin/update-orchestrators-ssh --dry-run
+
+# Show binary checksum (for verification)
+bin/update-orchestrators-ssh --show-checksum
+
+# Skip host key verification (INSECURE - only for testing)
+bin/update-orchestrators-ssh --skip-host-verification
+```
+
+**When to update orchestrators:**
+- After database migrations affecting `xmrig_commands` or `xmrig_processes` tables
+- After changes to orchestrator code logic
+- After bug fixes in the daemon
+- If seeing "no such column" errors in orchestrator logs
+
+**Security Features:**
+- ✅ SSH host key verification prevents MITM attacks
+- ✅ SHA256 checksum verification ensures binary integrity
+- ✅ Parallel deployment with 10 concurrent workers
+- ✅ 5-minute timeout per host prevents hanging
+- ✅ Memory protection (output truncated at 100KB)
+
+**Binary Checksum Verification:**
+
+The deployment process automatically verifies file integrity using SHA256 checksums:
+
+1. **Pre-deployment**: Calculate SHA256 checksum of local `host-daemon/xmrig-orchestrator` file
+2. **Post-copy**: Verify checksum on each remote host after file transfer
+3. **Failure handling**: Deployment aborts if checksum doesn't match
+
+To view the checksum before deployment:
+```bash
+bin/update-orchestrators-ssh --show-checksum
+```
+
+This prevents:
+- Corrupted file transfers
+- Tampering during transit
+- Deployment of unintended binaries
+
+**Note:** The update script uses direct SSH (not container-based) for security. Rails containers never have write access to the host filesystem.
+
+### Deployment Checklist
+
+When deploying changes:
+
+```bash
+# 1. Deploy Rails application
 bin/kamal deploy
 
-# 2. Restart orchestrator daemons on each host to pick up schema changes
-ssh host1 'sudo systemctl restart xmrig-orchestrator'
-ssh host2 'sudo systemctl restart xmrig-orchestrator'
-# ... repeat for all hosts
+# 2. Update orchestrators if daemon code changed
+bin/update-orchestrators-ssh
+
+# 3. Verify health
+bin/kamal logs
+ssh deploy@mini-1 'sudo systemctl status xmrig-orchestrator'
 ```
 
 ### Volume Mount Configuration
