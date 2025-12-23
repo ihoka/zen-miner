@@ -1,0 +1,25 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# Updates XMRig orchestrator daemon on all hosts via direct SSH
+# Usage: bin/update-orchestrators-ssh [options]
+#
+# Options:
+#   --host HOSTNAME   Update specific host only
+#   --yes            Skip confirmation prompt
+#   --dry-run        Show commands without executing
+#   --verbose        Show all SSH commands
+#
+# Examples:
+#   bin/update-orchestrators-ssh                      # Update all hosts with confirmation
+#   bin/update-orchestrators-ssh --host mini-1 --yes # Update single host, no prompt
+#   bin/update-orchestrators-ssh --dry-run           # Show what would be executed
+#
+# Exit codes:
+#   0 - All hosts updated successfully
+#   1 - One or more hosts failed to update
+
+require_relative "../lib/orchestrator_updater"
+
+# Run CLI
+OrchestratorUpdater::CLI.run(ARGV)

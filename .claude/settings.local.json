@@ -46,7 +46,11 @@
       "Skill(git:commit)",
       "Skill(git:checkout)",
       "Skill(git:push)",
-      "Bash(tree:*)"
+      "Bash(tree:*)",
+      "Bash(ruby test/update_orchestrator_test.rb:*)",
+      "Bash(ruby -Itest -Ilib test/update_orchestrator_test.rb:*)",
+      "Bash(timeout 10 ruby:*)",
+      "Bash(echo:*)"
     ]
   }
 }

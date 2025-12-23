@@ -1,13 +1,12 @@
 # frozen_string_literal: true
 
-require "test_helper"
 require "minitest/autorun"
 require "minitest/mock"
 require "yaml"
+require "stringio"
 
-# Load the script we're testing
-# This will fail initially (TDD - Red phase)
-require_relative "../bin/update-orchestrators-ssh"
+# Load the module we're testing
+require_relative "../lib/orchestrator_updater"
 
 class ConfigTest < Minitest::Test
   def setup
@@ -234,7 +233,10 @@ class SSHExecutorTest < Minitest::Test
 
     # Command should contain properly quoted hostname
     assert_match(/deploy@test-host/, executed_command)
-    refute_match(/deploy@test-host /, executed_command) # No space after hostname
+    # Should use SSH options
+    assert_match(/ConnectTimeout/, executed_command)
+    # Should contain the actual command
+    assert_match(/echo ok/, executed_command)
   end
 
   def test_dry_run_mode
@@ -484,11 +486,15 @@ class CLITest < Minitest::Test
         exit_called = false
         exit_code = nil
 
-        Kernel.stub :exit, lambda { |code|
-          exit_called = true
-          exit_code = code
-        } do
-          OrchestratorUpdater::CLI.run(["--yes"])
+        # Stub File.exist? to return true for source file check
+        File.stub :exist?, true do
+          Kernel.stub :exit, lambda { |code|
+            exit_called = true
+            exit_code = code
+            # Don't actually exit - just record the call
+          } do
+            OrchestratorUpdater::CLI.run(["--yes"])
+          end
         end
 
         assert exit_called
