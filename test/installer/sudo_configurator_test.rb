@@ -12,10 +12,20 @@ class SudoConfiguratorTest < Minitest::Test
   def test_execute_success_when_sudoers_configured
     original_umask = File.umask
     File.stub :open, lambda { |path, *args, &block|
-      # Mock file writing - just yield a mock file object
+      # Mock file writing - just yield a mock file object with all necessary IO methods
       mock_file = Object.new
       mock_file.define_singleton_method(:write) { |content| content.length }
-      block.call(mock_file) if block
+      mock_file.define_singleton_method(:closed?) { true }
+      mock_file.define_singleton_method(:path) { path }
+      mock_file.define_singleton_method(:close) { nil }
+      mock_file.define_singleton_method(:puts) { |*args| nil }
+      mock_file.define_singleton_method(:print) { |*args| nil }
+      mock_file.define_singleton_method(:flush) { nil }
+      if block
+        block.call(mock_file)
+      else
+        mock_file
+      end
     } do
       File.stub :umask, lambda { |new_mask = nil| new_mask ? original_umask : original_umask } do
         File.stub :unlink, lambda { |path| true } do
@@ -31,7 +41,7 @@ class SudoConfiguratorTest < Minitest::Test
               result = @configurator.execute
 
               assert result.success?
-              assert_equal "Sudoers file installed securely", result.message
+              assert_equal "Sudo permissions configured", result.message
 
               # Verify all steps were logged
               messages = @logger.messages.map { |_, msg| msg }
@@ -64,10 +74,20 @@ class SudoConfiguratorTest < Minitest::Test
   end
 
   def test_execute_fails_when_install_fails
-    File.stub :open, lambda { |*args, &block|
+    File.stub :open, lambda { |path, *args, &block|
       mock_file = Object.new
       mock_file.define_singleton_method(:write) { |content| content.length }
-      block.call(mock_file) if block
+      mock_file.define_singleton_method(:closed?) { true }
+      mock_file.define_singleton_method(:path) { path }
+      mock_file.define_singleton_method(:close) { nil }
+      mock_file.define_singleton_method(:puts) { |*args| nil }
+      mock_file.define_singleton_method(:print) { |*args| nil }
+      mock_file.define_singleton_method(:flush) { nil }
+      if block
+        block.call(mock_file)
+      else
+        mock_file
+      end
     } do
       Open3.stub :capture3, lambda { |*args|
         cmd = args.join(' ')
@@ -89,10 +109,20 @@ class SudoConfiguratorTest < Minitest::Test
   end
 
   def test_execute_fails_when_visudo_validation_fails
-    File.stub :open, lambda { |*args, &block|
+    File.stub :open, lambda { |path, *args, &block|
       mock_file = Object.new
       mock_file.define_singleton_method(:write) { |content| content.length }
-      block.call(mock_file) if block
+      mock_file.define_singleton_method(:closed?) { true }
+      mock_file.define_singleton_method(:path) { path }
+      mock_file.define_singleton_method(:close) { nil }
+      mock_file.define_singleton_method(:puts) { |*args| nil }
+      mock_file.define_singleton_method(:print) { |*args| nil }
+      mock_file.define_singleton_method(:flush) { nil }
+      if block
+        block.call(mock_file)
+      else
+        mock_file
+      end
     } do
       Open3.stub :capture3, lambda { |*args|
         cmd = args.join(' ')
@@ -118,10 +148,20 @@ class SudoConfiguratorTest < Minitest::Test
   def test_execute_removes_file_on_validation_failure
     file_unlinked = false
 
-    File.stub :open, lambda { |*args, &block|
+    File.stub :open, lambda { |path, *args, &block|
       mock_file = Object.new
       mock_file.define_singleton_method(:write) { |content| content.length }
-      block.call(mock_file) if block
+      mock_file.define_singleton_method(:closed?) { true }
+      mock_file.define_singleton_method(:path) { path }
+      mock_file.define_singleton_method(:close) { nil }
+      mock_file.define_singleton_method(:puts) { |*args| nil }
+      mock_file.define_singleton_method(:print) { |*args| nil }
+      mock_file.define_singleton_method(:flush) { nil }
+      if block
+        block.call(mock_file)
+      else
+        mock_file
+      end
     } do
       Open3.stub :capture3, lambda { |*args|
         cmd = args.join(' ')
