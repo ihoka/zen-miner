@@ -18,21 +18,24 @@ class SystemdInstallerTest < Minitest::Test
 
       Open3.stub :capture3, lambda { |*args|
         cmd = args.join(' ')
+        # After restart, is-active check should return true (service is running)
         if cmd.include?('is-active')
-          ["", "", mock_status(false)]  # Not running
+          ["", "", mock_status(true)]
         else
           ["", "", mock_status(true)]
         end
       } do
-        result = @installer.execute
+        Kernel.stub :sleep, nil do
+          result = @installer.execute
 
-        assert result.success?
-        assert_equal "Systemd services installed and enabled", result.message
+          assert result.success?
+          assert_equal "Systemd services installed and enabled", result.message
 
-        messages = @logger.messages.map { |_, msg| msg }
-        assert messages.any? { |msg| msg.include?("xmrig.service") }
-        assert messages.any? { |msg| msg.include?("xmrig-orchestrator.service") }
-        assert messages.any? { |msg| msg.include?("Systemd daemon reloaded") }
+          messages = @logger.messages.map { |_, msg| msg }
+          assert messages.any? { |msg| msg.include?("xmrig.service") }
+          assert messages.any? { |msg| msg.include?("xmrig-orchestrator.service") }
+          assert messages.any? { |msg| msg.include?("Systemd daemon reloaded") }
+        end
       end
     end
   end
@@ -65,14 +68,15 @@ class SystemdInstallerTest < Minitest::Test
           assert result.success?
 
           messages = @logger.messages.map { |_, msg| msg }
-          assert messages.any? { |msg| msg.include?("Restarting orchestrator") }
-          assert messages.any? { |msg| msg.include?("Orchestrator restarted successfully") }
+          assert messages.any? { |msg| msg.include?("Orchestrator restarted") }
+          assert messages.any? { |msg| msg.include?("Services verified") }
         end
       end
     end
   end
 
-  def test_execute_continues_if_restart_fails
+  def test_execute_fails_if_orchestrator_restart_fails
+    # Updated to match new behavior: installer fails if orchestrator restart fails
     with_temp_dir do |tmpdir|
       File.write(File.join(tmpdir, 'xmrig.service'), "[Unit]")
       File.write(File.join(tmpdir, 'xmrig-orchestrator.service'), "[Unit]")
@@ -81,23 +85,17 @@ class SystemdInstallerTest < Minitest::Test
 
       Open3.stub :capture3, lambda { |*args|
         cmd = args.join(' ')
-        if cmd.include?('restart')
-          ["", "Failed to restart", mock_status(false)]
-        elsif cmd.include?('is-active')
-          ["", "", mock_status(true)]  # Running initially
+        if cmd.include?('restart xmrig-orchestrator')
+          ["", "Failed to restart orchestrator", mock_status(false)]
         else
           ["", "", mock_status(true)]
         end
       } do
         result = @installer.execute
 
-        # Should still succeed even if restart fails
-        assert result.success?
-
-        # But should log a warning
-        messages = @logger.messages
-        warnings = messages.select { |level, _| level == :warn }
-        assert warnings.any?, "Expected a warning message about restart failure"
+        # Should fail if orchestrator restart fails
+        refute result.success?
+        assert_includes result.message, "Failed to restart orchestrator"
       end
     end
   end
@@ -185,27 +183,34 @@ class SystemdInstallerTest < Minitest::Test
   def test_always_restarts_services
     # Purpose: Verify that services are always restarted when installer runs
     # This test validates the "always execute" behavior - services restart every time
-    restart_count = 0
+    with_temp_dir do |tmpdir|
+      File.write(File.join(tmpdir, 'xmrig.service'), "[Unit]")
+      File.write(File.join(tmpdir, 'xmrig-orchestrator.service'), "[Unit]")
 
-    @installer.stub :find_service_source, lambda { |_| "/tmp/fake-service-file" } do
+      @installer = Installer::SystemdInstaller.new(logger: @logger, script_dir: tmpdir)
+
+      restart_count = 0
+
       Open3.stub :capture3, lambda { |*args|
         cmd = args.join(' ')
         # Count service restart operations
         restart_count += 1 if cmd.include?('systemctl restart')
         ["", "", mock_status(true)]
       } do
-        # First execution
-        result1 = @installer.execute
-        assert result1.success?
+        Kernel.stub :sleep, nil do
+          # First execution
+          result1 = @installer.execute
+          assert result1.success?
 
-        # Second execution - should restart again (no idempotency)
-        result2 = @installer.execute
-        assert result2.success?
+          # Second execution - should restart again (no idempotency)
+          result2 = @installer.execute
+          assert result2.success?
 
-        # Verify both executions restarted services
-        # Each execution restarts orchestrator (always) + xmrig (may fail)
-        # Minimum 2 restart attempts per execution = 4 total
-        assert restart_count >= 4, "Services should be restarted on every execution (got #{restart_count} restarts)"
+          # Verify both executions restarted services
+          # Each execution restarts orchestrator (always) + xmrig (may fail)
+          # Minimum 2 restart attempts per execution = 4 total
+          assert restart_count >= 4, "Services should be restarted on every execution (got #{restart_count} restarts)"
+        end
       end
     end
   end
