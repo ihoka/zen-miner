@@ -6,7 +6,7 @@ service: zen-miner
 image: ihoka/zen-miner
 
 # How long to wait for new containers to boot and become healthy
-deploy_timeout: 60
+deploy_timeout: 180
 
 # Deploy to these servers (6 servers behind Cloudflare load balancing).
 # TODO: Replace with actual server hostnames or IPs
@@ -41,7 +41,7 @@ proxy:
   healthcheck:
     path: /up
     interval: 3
-    timeout: 60  # Increased from 30s default to allow app startup
+    timeout: 180 # Increased to allow slow Rails boot (60+ seconds)
 
 # Container registry - Docker Hub.
 # Credentials are fetched from 1Password/Bitwarden via .kamal/secrets
@@ -83,6 +83,7 @@ aliases:
   shell: app exec --interactive --reuse "bash"
   logs: app logs -f
   dbc: app exec --interactive --reuse "bin/rails dbconsole"
+  migrate: app exec "bin/rails db:migrate"
 
 # Persistent storage for Active Storage uploads and SQLite database.
 # Using bind mount so host daemon can access the database directly.
