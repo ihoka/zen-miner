@@ -255,17 +255,12 @@ module OrchestratorUpdater
       update_script = <<~BASH
         set -e
 
-        # 1. Detect xmrig binary location
-        XMRIG_PATH=$(which xmrig 2>/dev/null || echo "")
-        if [ -n "$XMRIG_PATH" ] && [ "$XMRIG_PATH" != "/usr/local/bin/xmrig" ]; then
-          echo "  ✓ XMRig detected at: $XMRIG_PATH"
-          sudo ln -sf "$XMRIG_PATH" /usr/local/bin/xmrig
-          echo "  ✓ Symlink created: /usr/local/bin/xmrig"
-        elif [ -z "$XMRIG_PATH" ]; then
-          echo "  ⚠ Warning: xmrig not found in PATH"
-        else
-          echo "  ✓ XMRig already at /usr/local/bin/xmrig"
+        # 1. Verify xmrig binary exists
+        if ! command -v xmrig &> /dev/null; then
+          echo "  ✗ Error: xmrig not found in PATH"
+          exit 1
         fi
+        echo "  ✓ XMRig found at: $(which xmrig)"
 
         # 2. Install orchestrator
         sudo cp #{temp_file} /usr/local/bin/xmrig-orchestrator

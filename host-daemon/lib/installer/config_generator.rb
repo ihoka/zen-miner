@@ -62,10 +62,6 @@ module Installer
       Result.success("XMRig configuration generated")
     end
 
-    def completed?
-      file_exists?(CONFIG_FILE)
-    end
-
     private
 
     # Validate Monero wallet address
@@ -153,6 +149,9 @@ module Installer
 
       # Write to temporary file first
       temp_file = "#{CONFIG_FILE}.tmp"
+
+      # Always overwrite - remove any existing files first
+      run_command('sudo', 'rm', '-f', CONFIG_FILE, temp_file)
 
       # Use heredoc to write JSON content safely
       result = run_command('sudo', 'bash', '-c', "cat > #{temp_file} <<'EOF'\n#{json_content}\nEOF")

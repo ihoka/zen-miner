@@ -4,11 +4,10 @@ require_relative 'base_step'
 
 module Installer
   # Daemon installation step
-  # Installs XMRig orchestrator daemon and creates XMRig symlink
+  # Installs XMRig orchestrator daemon
   class DaemonInstaller < BaseStep
     DAEMON_SOURCE = 'xmrig-orchestrator'
     DAEMON_DEST = '/usr/local/bin/xmrig-orchestrator'
-    XMRIG_SYMLINK = '/usr/local/bin/xmrig'
 
     def execute
       # Find source daemon (relative to install script location)
@@ -20,8 +19,8 @@ module Installer
         )
       end
 
-      # Detect XMRig binary location
-      result = detect_and_symlink_xmrig
+      # Verify XMRig binary exists
+      result = verify_xmrig_exists
       return result if result.failure?
 
       # Install daemon
@@ -33,10 +32,6 @@ module Installer
       return result if result.failure?
 
       Result.success("Orchestrator daemon installed")
-    end
-
-    def completed?
-      file_exists?(DAEMON_DEST) && file_executable?(DAEMON_DEST)
     end
 
     private
@@ -57,8 +52,8 @@ module Installer
       possible_paths.find { |path| File.exist?(path) }
     end
 
-    def detect_and_symlink_xmrig
-      # Find xmrig binary location
+    def verify_xmrig_exists
+      # Find xmrig binary in PATH
       result = run_command('which', 'xmrig')
 
       unless result[:success]
@@ -80,50 +75,8 @@ module Installer
         )
       end
 
-      # Get real path (resolve any symlinks)
-      real_path_result = run_command('readlink', '-f', xmrig_path)
-      unless real_path_result[:success]
-        return Result.failure(
-          "Failed to resolve real path for #{xmrig_path}",
-          data: { path: xmrig_path, error: real_path_result[:stderr] }
-        )
-      end
-
-      real_path = real_path_result[:stdout].strip
-
-      # Validate real path is in expected locations for security
-      allowed_prefixes = %w[/usr/bin /usr/local/bin /opt /home]
-      unless allowed_prefixes.any? { |prefix| real_path.start_with?(prefix) }
-        return Result.failure(
-          "XMRig binary in unexpected location: #{real_path}",
-          data: { real_path: real_path, xmrig_path: xmrig_path }
-        )
-      end
-
-      logger.info "   ✓ XMRig validated (real path: #{real_path})"
-
-      # Create symlink if needed
-      if xmrig_path != XMRIG_SYMLINK
-        # Check if symlink already exists and points to correct location
-        if file_exists?(XMRIG_SYMLINK)
-          symlink_result = run_command('readlink', '-f', XMRIG_SYMLINK)
-          if symlink_result[:success] && symlink_result[:stdout].strip == real_path
-            logger.info "   ✓ Symlink already points to correct location"
-            return Result.success("Symlink verified")
-          end
-        end
-
-        # Create/update symlink using real path for security
-        result = sudo_execute('ln', '-sf', real_path, XMRIG_SYMLINK,
-                             error_prefix: "Failed to create symlink")
-        return result if result.failure?
-
-        logger.info "   ✓ Symlink created: #{XMRIG_SYMLINK} -> #{real_path}"
-        Result.success("XMRig symlink created")
-      else
-        logger.info "   ✓ XMRig already at standard location"
-        Result.success("XMRig location verified")
-      end
+      logger.info "   ✓ XMRig validated"
+      Result.success("XMRig binary verified")
     end
 
     def install_daemon(source_path)

@@ -34,11 +34,6 @@ module Installer
       Result.success("All prerequisites met")
     end
 
-    # Prerequisites always run (not idempotent)
-    def completed?
-      false
-    end
-
     private
 
     def sudo_available?

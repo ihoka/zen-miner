@@ -44,13 +44,6 @@ module Installer
         step_number = index + 1
         description = step.description
 
-        # Check if step is already completed (idempotency)
-        if step.completed?
-          logger.info "[#{step_number}/#{total_steps}] #{description}... ✓ Already completed"
-          results << Result.success("#{description} (skipped - already completed)")
-          next
-        end
-
         # Execute step
         logger.info "[#{step_number}/#{total_steps}] #{description}..."
 

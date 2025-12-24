@@ -21,12 +21,6 @@ module Installer
       raise NotImplementedError, "#{self.class.name} must implement #execute"
     end
 
-    # Check if step has already been completed (for idempotency)
-    # @return [Boolean] true if step is already completed
-    def completed?
-      false
-    end
-
     # Generate human-readable description from class name
     # @return [String] description of the step
     def description

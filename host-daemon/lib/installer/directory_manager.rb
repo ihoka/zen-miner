@@ -33,16 +33,6 @@ module Installer
       Result.success("All directories and files created")
     end
 
-    def completed?
-      # Check if all directories exist
-      return false unless DIRECTORIES.all? { |dir| file_exists?(dir[:path]) }
-
-      # Check if all files exist
-      return false unless FILES.all? { |file| file_exists?(file[:path]) }
-
-      true
-    end
-
     private
 
     def create_directory(dir_info)
