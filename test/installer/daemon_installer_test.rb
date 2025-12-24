@@ -224,33 +224,6 @@ class DaemonInstallerTest < Minitest::Test
     end
   end
 
-  def test_completed_returns_true_when_daemon_exists_and_executable
-    @installer = Installer::DaemonInstaller.new(logger: @logger)
-
-    File.stub :exist?, true do
-      File.stub :executable?, true do
-        assert @installer.completed?, "Should be completed when daemon exists and is executable"
-      end
-    end
-  end
-
-  def test_completed_returns_false_when_daemon_missing
-    @installer = Installer::DaemonInstaller.new(logger: @logger)
-
-    File.stub :exist?, false do
-      refute @installer.completed?, "Should not be completed when daemon is missing"
-    end
-  end
-
-  def test_completed_returns_false_when_daemon_not_executable
-    @installer = Installer::DaemonInstaller.new(logger: @logger)
-
-    File.stub :exist?, true do
-      File.stub :executable?, false do
-        refute @installer.completed?, "Should not be completed when daemon is not executable"
-      end
-    end
-  end
 
   private
 

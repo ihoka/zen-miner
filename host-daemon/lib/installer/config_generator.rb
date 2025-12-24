@@ -147,26 +147,27 @@ module Installer
       # Generate JSON with pretty formatting
       json_content = JSON.pretty_generate(config)
 
-      # Write to temporary file first
-      temp_file = "#{CONFIG_FILE}.tmp"
-
-      # Always overwrite - remove any existing files first
-      run_command('sudo', 'rm', '-f', CONFIG_FILE, temp_file)
+      # Write to temporary file first (atomic operation)
+      temp_file = "#{CONFIG_FILE}.tmp.#{Process.pid}"
 
       # Use heredoc to write JSON content safely
       result = run_command('sudo', 'bash', '-c', "cat > #{temp_file} <<'EOF'\n#{json_content}\nEOF")
 
       unless result[:success]
+        # Clean up temp file on failure
+        run_command('sudo', 'rm', '-f', temp_file)
         return Result.failure(
           "Failed to write config file: #{result[:stderr]}",
           data: { file: temp_file, error: result[:stderr] }
         )
       end
 
-      # Move to final location
-      result = run_command('sudo', 'mv', temp_file, CONFIG_FILE)
+      # Atomic move to final location (overwrites existing file)
+      result = run_command('sudo', 'mv', '-f', temp_file, CONFIG_FILE)
 
       unless result[:success]
+        # Clean up temp file on failure
+        run_command('sudo', 'rm', '-f', temp_file)
         return Result.failure(
           "Failed to move config file to final location: #{result[:stderr]}",
           data: { error: result[:stderr] }

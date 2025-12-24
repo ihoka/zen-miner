@@ -146,29 +146,6 @@ class DirectoryManagerTest < Minitest::Test
     end
   end
 
-  def test_completed_returns_true_when_all_exist
-    @manager.stub :file_exists?, true do
-      assert @manager.completed?, "Should be completed when all directories and files exist"
-    end
-  end
-
-  def test_completed_returns_false_when_directory_missing
-    # Only some paths exist
-    @manager.stub :file_exists?, lambda { |path|
-      path != '/var/log/xmrig'  # First directory is missing
-    } do
-      refute @manager.completed?, "Should not be completed when a directory is missing"
-    end
-  end
-
-  def test_completed_returns_false_when_file_missing
-    @manager.stub :file_exists?, lambda { |path|
-      !path.include?('orchestrator.log')  # File is missing
-    } do
-      refute @manager.completed?, "Should not be completed when a file is missing"
-    end
-  end
-
   def test_directories_constant_includes_all_required_paths
     paths = Installer::DirectoryManager::DIRECTORIES.map { |d| d[:path] }
 

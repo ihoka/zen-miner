@@ -184,28 +184,6 @@ class SudoConfiguratorTest < Minitest::Test
     end
   end
 
-  def test_completed_returns_true_when_file_exists_with_correct_permissions
-    @configurator.stub :file_exists?, true do
-      @configurator.stub :file_has_mode?, true do
-        assert @configurator.completed?, "Should be completed when file exists with correct permissions"
-      end
-    end
-  end
-
-  def test_completed_returns_false_when_file_missing
-    @configurator.stub :file_exists?, false do
-      refute @configurator.completed?, "Should not be completed when file is missing"
-    end
-  end
-
-  def test_completed_returns_false_when_permissions_incorrect
-    @configurator.stub :file_exists?, true do
-      @configurator.stub :file_has_mode?, false do
-        refute @configurator.completed?, "Should not be completed when permissions are incorrect"
-      end
-    end
-  end
-
   def test_sudoers_content_includes_required_commands
     content = Installer::SudoConfigurator::SUDOERS_CONTENT
 

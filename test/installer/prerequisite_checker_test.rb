@@ -218,11 +218,6 @@ class PrerequisiteCheckerTest < Minitest::Test
     end
   end
 
-  def test_completed_always_returns_false
-    # Prerequisites should always run, never skip
-    refute @checker.completed?, "Prerequisites should never be marked as completed"
-  end
-
   def test_installs_bundler_if_missing
     with_env('MONERO_WALLET' => '4' + 'A' * 94, 'WORKER_ID' => 'test') do
       @checker.stub :command_exists?, true do

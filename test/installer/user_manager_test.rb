@@ -183,45 +183,7 @@ class UserManagerTest < Minitest::Test
           ["", "", mock_status(true)]
         end
       } do
-        assert @manager.completed?, "Should be completed when all users and groups exist"
-      end
-    end
-  end
-
-  def test_completed_returns_false_when_users_missing
-    @manager.stub :user_exists?, false do
-      refute @manager.completed?, "Should not be completed when users are missing"
-    end
-  end
-
-  def test_completed_returns_false_when_group_missing
-    @manager.stub :user_exists?, true do
-      Open3.stub :capture3, lambda { |*args|
-        cmd = args.join(' ')
-        if cmd.include?('getent group deploy')
-          ["", "", mock_status(false)]  # Group doesn't exist
-        else
-          ["", "", mock_status(true)]
-        end
-      } do
-        refute @manager.completed?, "Should not be completed when deploy group is missing"
-      end
-    end
-  end
-
-  def test_completed_returns_false_when_orchestrator_not_in_group
-    @manager.stub :user_exists?, true do
-      Open3.stub :capture3, lambda { |*args|
-        cmd = args.join(' ')
-        if cmd.include?('getent group deploy')
-          ["deploy:x:1001:", "", mock_status(true)]
-        elsif cmd.include?('groups xmrig-orchestrator')
-          ["xmrig-orchestrator : xmrig-orchestrator", "", mock_status(true)]  # Not in deploy group
-        else
-          ["", "", mock_status(true)]
-        end
-      } do
-        refute @manager.completed?, "Should not be completed when orchestrator not in deploy group"
+        # Test removed - completed? method no longer exists
       end
     end
   end

@@ -37,18 +37,6 @@ class LogrotateConfiguratorTest < Minitest::Test
     end
   end
 
-  def test_completed_returns_true_when_file_exists
-    @configurator.stub :file_exists?, true do
-      assert @configurator.completed?, "Should be completed when logrotate file exists"
-    end
-  end
-
-  def test_completed_returns_false_when_file_missing
-    @configurator.stub :file_exists?, false do
-      refute @configurator.completed?, "Should not be completed when logrotate file is missing"
-    end
-  end
-
   def test_logrotate_config_includes_required_settings
     config = Installer::LogrotateConfigurator::LOGROTATE_CONFIG
 

@@ -163,14 +163,28 @@ export CPU_MAX_THREADS_HINT="50"                   # Optional
 sudo ./install.sh
 ```
 
+**⚠️ IMPORTANT: Installer Behavior**
+
+The installation script **ALWAYS executes all steps and restarts services** on every run:
+- ✅ Configuration files are ALWAYS overwritten with current environment variables
+- ✅ Services are ALWAYS restarted after installation
+- ✅ No idempotency checks - all steps run every time
+- ⚠️ Manual config customizations will be lost (must be represented in environment variables)
+- ⚠️ Services experience brief downtime during installation/updates
+
+This ensures:
+- Configuration always matches current environment
+- Services run with latest code after updates
+- No edge cases from partial installations
+
 The installation script will:
 1. Verify Ruby and XMRig are installed
 2. Install system dependencies (SQLite3, sudo)
 3. Create `xmrig` and `xmrig-orchestrator` system users
 4. Configure sudo permissions for orchestrator
-5. Generate XMRig configuration
+5. Generate XMRig configuration (ALWAYS overwrites `/etc/xmrig/config.json`)
 6. Install orchestrator daemon
-7. Set up systemd services
+7. Set up systemd services (ALWAYS restarts services)
 8. Configure log rotation (7-day retention)
 
 ### Step 3: Start Orchestrator Service
@@ -204,6 +218,12 @@ Xmrig::CommandService.restart_mining(reason: 'config_change')
 ### Updating Orchestrator Daemon
 
 After making changes to `host-daemon/xmrig-orchestrator`, update all hosts:
+
+**⚠️ UPDATE BEHAVIOR**: The update script will:
+- Overwrite the orchestrator binary at `/usr/local/bin/xmrig-orchestrator`
+- Restart the `xmrig-orchestrator` service (brief downtime expected)
+- Re-run all installation steps (no idempotency checks)
+- Ensure all configuration files match current environment variables
 
 #### First Time Setup: Add SSH Host Keys
 

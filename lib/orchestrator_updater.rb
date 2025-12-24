@@ -252,6 +252,9 @@ module OrchestratorUpdater
 
       temp_file = "#{@temp_prefix}-#{@hostname}"
 
+      # Properly escape temp_file to prevent shell injection
+      escaped_temp_file = Shellwords.escape(temp_file)
+
       update_script = <<~BASH
         set -e
 
@@ -263,7 +266,7 @@ module OrchestratorUpdater
         echo "  ✓ XMRig found at: $(which xmrig)"
 
         # 2. Install orchestrator
-        sudo cp #{temp_file} /usr/local/bin/xmrig-orchestrator
+        sudo cp #{escaped_temp_file} /usr/local/bin/xmrig-orchestrator
         sudo chmod +x /usr/local/bin/xmrig-orchestrator
         echo "  ✓ Orchestrator updated"
 
@@ -281,7 +284,7 @@ module OrchestratorUpdater
         fi
 
         # 5. Cleanup
-        rm -f #{temp_file}
+        rm -f #{escaped_temp_file}
       BASH
 
       stdout, stderr, status = ssh(update_script)

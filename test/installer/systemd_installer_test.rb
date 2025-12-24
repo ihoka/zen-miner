@@ -182,19 +182,31 @@ class SystemdInstallerTest < Minitest::Test
     end
   end
 
-  def test_completed_returns_true_when_service_files_exist
-    @installer = Installer::SystemdInstaller.new(logger: @logger)
+  def test_always_restarts_services
+    # Purpose: Verify that services are always restarted when installer runs
+    # This test validates the "always execute" behavior - services restart every time
+    restart_count = 0
 
-    @installer.stub :file_exists?, true do
-      assert @installer.completed?, "Should be completed when all service files exist"
-    end
-  end
+    @installer.stub :find_service_source, lambda { |_| "/tmp/fake-service-file" } do
+      Open3.stub :capture3, lambda { |*args|
+        cmd = args.join(' ')
+        # Count service restart operations
+        restart_count += 1 if cmd.include?('systemctl restart')
+        ["", "", mock_status(true)]
+      } do
+        # First execution
+        result1 = @installer.execute
+        assert result1.success?
 
-  def test_completed_returns_false_when_service_files_missing
-    @installer = Installer::SystemdInstaller.new(logger: @logger)
+        # Second execution - should restart again (no idempotency)
+        result2 = @installer.execute
+        assert result2.success?
 
-    @installer.stub :file_exists?, false do
-      refute @installer.completed?, "Should not be completed when service files are missing"
+        # Verify both executions restarted services
+        # Each execution restarts orchestrator (always) + xmrig (may fail)
+        # Minimum 2 restart attempts per execution = 4 total
+        assert restart_count >= 4, "Services should be restarted on every execution (got #{restart_count} restarts)"
+      end
     end
   end
 

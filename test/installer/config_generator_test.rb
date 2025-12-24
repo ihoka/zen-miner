@@ -161,18 +161,6 @@ class ConfigGeneratorTest < Minitest::Test
     end
   end
 
-  def test_completed_returns_true_when_config_exists
-    @generator.stub :file_exists?, true do
-      assert @generator.completed?, "Should be completed when config file exists"
-    end
-  end
-
-  def test_completed_returns_false_when_config_missing
-    @generator.stub :file_exists?, false do
-      refute @generator.completed?, "Should not be completed when config file is missing"
-    end
-  end
-
   def test_config_file_path_is_correct
     assert_equal '/etc/xmrig/config.json', Installer::ConfigGenerator::CONFIG_FILE
   end
@@ -183,6 +171,32 @@ class ConfigGeneratorTest < Minitest::Test
 
   def test_default_cpu_threads_is_50
     assert_equal 50, Installer::ConfigGenerator::DEFAULT_CPU_MAX_THREADS_HINT
+  end
+
+  def test_always_overwrites_existing_config
+    # Purpose: Verify that config file is always overwritten when installer runs
+    # This test validates the "always execute" behavior - no idempotency checks
+    with_env('MONERO_WALLET' => '4' + 'A' * 94, 'WORKER_ID' => 'worker-1') do
+      write_count = 0
+
+      Open3.stub :capture3, lambda { |*args|
+        cmd = args.join(' ')
+        # Count mv operations (the atomic write completion)
+        write_count += 1 if cmd.include?('sudo mv')
+        ["", "", mock_status(true)]
+      } do
+        # First execution
+        result1 = @generator.execute
+        assert result1.success?
+
+        # Second execution - should write again (no idempotency)
+        result2 = @generator.execute
+        assert result2.success?
+
+        # Verify both executions performed the write operation
+        assert_equal 2, write_count, "Config should be written on every execution"
+      end
+    end
   end
 
   private
