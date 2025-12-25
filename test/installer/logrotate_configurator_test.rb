@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
-require_relative 'test_helper'
-require_relative '../../host-daemon/lib/installer/logrotate_configurator'
+require_relative "test_helper"
+require_relative "../../host-daemon/lib/installer/logrotate_configurator"
 
 class LogrotateConfiguratorTest < Minitest::Test
   def setup
@@ -37,18 +37,6 @@ class LogrotateConfiguratorTest < Minitest::Test
     end
   end
 
-  def test_completed_returns_true_when_file_exists
-    @configurator.stub :file_exists?, true do
-      assert @configurator.completed?, "Should be completed when logrotate file exists"
-    end
-  end
-
-  def test_completed_returns_false_when_file_missing
-    @configurator.stub :file_exists?, false do
-      refute @configurator.completed?, "Should not be completed when logrotate file is missing"
-    end
-  end
-
   def test_logrotate_config_includes_required_settings
     config = Installer::LogrotateConfigurator::LOGROTATE_CONFIG
 
@@ -62,7 +50,7 @@ class LogrotateConfiguratorTest < Minitest::Test
   end
 
   def test_logrotate_file_path_is_correct
-    assert_equal '/etc/logrotate.d/xmrig', Installer::LogrotateConfigurator::LOGROTATE_FILE
+    assert_equal "/etc/logrotate.d/xmrig", Installer::LogrotateConfigurator::LOGROTATE_FILE
   end
 
   private

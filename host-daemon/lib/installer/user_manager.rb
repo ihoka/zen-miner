@@ -31,15 +31,6 @@ module Installer
       Result.success("All users and groups configured")
     end
 
-    def completed?
-      # Check if all users exist and are in correct groups
-      return false unless all_users_exist?
-      return false unless group_exists?(DEPLOY_GROUP)
-      return false unless user_in_group?('xmrig-orchestrator', DEPLOY_GROUP)
-
-      true
-    end
-
     private
 
     def all_users_exist?

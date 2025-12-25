@@ -47,7 +47,7 @@ module OrchestratorUpdater
       return false if hostname.length > MAX_HOSTNAME_LENGTH
 
       # Split into labels and validate each one
-      labels = hostname.split('.')
+      labels = hostname.split(".")
       return false if labels.empty?
       return false if labels.any? { |label| !label.match?(LABEL_REGEX) }
 
@@ -96,7 +96,7 @@ module OrchestratorUpdater
       # Append to file (idempotent - won't add duplicates)
       existing_content = File.exist?(KNOWN_HOSTS_FILE) ? File.read(KNOWN_HOSTS_FILE) : ""
       unless existing_content.include?(entry)
-        File.open(KNOWN_HOSTS_FILE, 'a') do |f|
+        File.open(KNOWN_HOSTS_FILE, "a") do |f|
           f.puts entry
         end
         puts "✓ Added #{hostname} to known hosts"
@@ -117,7 +117,7 @@ module OrchestratorUpdater
     # @return [String, nil] host key or nil if failed
     def self.get_host_key(hostname, ssh_user)
       # Use ssh-keyscan to get host key
-      stdout, stderr, status = Open3.capture3('ssh-keyscan', '-H', hostname)
+      stdout, stderr, status = Open3.capture3("ssh-keyscan", "-H", hostname)
 
       unless status.success?
         warn "ssh-keyscan failed for #{hostname}: #{stderr}"
@@ -126,7 +126,7 @@ module OrchestratorUpdater
 
       # Parse the output - format is: "hostname algorithm key"
       # ssh-keyscan returns hashed hostnames with -H flag
-      keys = stdout.lines.reject { |line| line.start_with?('#') }
+      keys = stdout.lines.reject { |line| line.start_with?("#") }
       return nil if keys.empty?
 
       # Return first valid key
@@ -141,7 +141,7 @@ module OrchestratorUpdater
       return [] unless File.exist?(KNOWN_HOSTS_FILE)
 
       File.readlines(KNOWN_HOSTS_FILE, chomp: true)
-        .reject { |line| line.strip.empty? || line.start_with?('#') }
+        .reject { |line| line.strip.empty? || line.start_with?("#") }
         .map { |line| line.split.first }
         .compact
     end
@@ -168,9 +168,9 @@ module OrchestratorUpdater
     def self.verify_remote_checksum(hostname, remote_path, expected_checksum, ssh_user: "deploy")
       # Get checksum from remote host
       stdout, stderr, status = Open3.capture3(
-        'ssh',
-        '-o', 'ConnectTimeout=5',
-        '-o', 'StrictHostKeyChecking=yes',
+        "ssh",
+        "-o", "ConnectTimeout=5",
+        "-o", "StrictHostKeyChecking=yes",
         "#{ssh_user}@#{hostname}",
         "sha256sum #{Shellwords.escape(remote_path)}"
       )
@@ -252,23 +252,21 @@ module OrchestratorUpdater
 
       temp_file = "#{@temp_prefix}-#{@hostname}"
 
+      # Properly escape temp_file to prevent shell injection
+      escaped_temp_file = Shellwords.escape(temp_file)
+
       update_script = <<~BASH
         set -e
 
-        # 1. Detect xmrig binary location
-        XMRIG_PATH=$(which xmrig 2>/dev/null || echo "")
-        if [ -n "$XMRIG_PATH" ] && [ "$XMRIG_PATH" != "/usr/local/bin/xmrig" ]; then
-          echo "  ✓ XMRig detected at: $XMRIG_PATH"
-          sudo ln -sf "$XMRIG_PATH" /usr/local/bin/xmrig
-          echo "  ✓ Symlink created: /usr/local/bin/xmrig"
-        elif [ -z "$XMRIG_PATH" ]; then
-          echo "  ⚠ Warning: xmrig not found in PATH"
-        else
-          echo "  ✓ XMRig already at /usr/local/bin/xmrig"
+        # 1. Verify xmrig binary exists
+        if ! command -v xmrig &> /dev/null; then
+          echo "  ✗ Error: xmrig not found in PATH"
+          exit 1
         fi
+        echo "  ✓ XMRig found at: $(which xmrig)"
 
         # 2. Install orchestrator
-        sudo cp #{temp_file} /usr/local/bin/xmrig-orchestrator
+        sudo cp #{escaped_temp_file} /usr/local/bin/xmrig-orchestrator
         sudo chmod +x /usr/local/bin/xmrig-orchestrator
         echo "  ✓ Orchestrator updated"
 
@@ -286,7 +284,7 @@ module OrchestratorUpdater
         fi
 
         # 5. Cleanup
-        rm -f #{temp_file}
+        rm -f #{escaped_temp_file}
       BASH
 
       stdout, stderr, status = ssh(update_script)
@@ -311,17 +309,17 @@ module OrchestratorUpdater
       # Use array form to prevent shell interpretation
       # Add timeout wrapper and connection monitoring
       ssh_args = [
-        'timeout', '300',  # 5 minute overall timeout
-        'ssh',
-        '-o', 'ConnectTimeout=5',
-        '-o', 'ServerAliveInterval=5',    # Detect dead connections
-        '-o', 'ServerAliveCountMax=3',     # 3 failed keepalives = disconnect
-        '-o', 'StrictHostKeyChecking=yes', # Require known host key
+        "timeout", "300",  # 5 minute overall timeout
+        "ssh",
+        "-o", "ConnectTimeout=5",
+        "-o", "ServerAliveInterval=5",    # Detect dead connections
+        "-o", "ServerAliveCountMax=3",     # 3 failed keepalives = disconnect
+        "-o", "StrictHostKeyChecking=yes", # Require known host key
         "#{@ssh_user}@#{@hostname}",
         command
       ]
 
-      log_command(ssh_args.join(' ')) if @verbose
+      log_command(ssh_args.join(" ")) if @verbose
 
       Open3.capture3(*ssh_args)
     end
@@ -329,15 +327,15 @@ module OrchestratorUpdater
     def scp(source, destination)
       # Use array form to prevent shell interpretation
       scp_args = [
-        'scp',
-        '-q',
-        '-o', 'ConnectTimeout=5',
-        '-o', 'StrictHostKeyChecking=yes',  # Require known host key
+        "scp",
+        "-q",
+        "-o", "ConnectTimeout=5",
+        "-o", "StrictHostKeyChecking=yes",  # Require known host key
         source,
         "#{@ssh_user}@#{@hostname}:#{destination}"
       ]
 
-      log_command(scp_args.join(' ')) if @verbose
+      log_command(scp_args.join(" ")) if @verbose
 
       Open3.capture3(*scp_args)
     end
@@ -455,7 +453,7 @@ module OrchestratorUpdater
       puts "Deployment strategy: #{max_parallel} parallel workers"
       puts
 
-      pool = Concurrent::FixedThreadPool.new(max_parallel, name: 'orchestrator-deploy')
+      pool = Concurrent::FixedThreadPool.new(max_parallel, name: "orchestrator-deploy")
 
       futures = @hosts.map do |hostname|
         Concurrent::Future.execute(executor: pool) do

@@ -30,20 +30,11 @@ module Installer
         return result if result.failure?
       end
 
-      # Restart orchestrator if already running
-      result = restart_orchestrator_if_running
-      # Don't fail if restart fails, just log warning
-      logger.warn "   ⚠ #{result.message}" if result.failure?
+      # Always restart services to apply changes
+      result = restart_services
+      return result if result.failure?
 
       Result.success("Systemd services installed and enabled")
-    end
-
-    def completed?
-      # Check if all service files exist
-      SERVICES.all? do |service_info|
-        dest_path = File.join(SYSTEMD_DIR, service_info[:name])
-        file_exists?(dest_path)
-      end
     end
 
     private
@@ -117,19 +108,8 @@ module Installer
       end
     end
 
-    def restart_orchestrator_if_running
-      # Check if orchestrator is running
-      result = run_command('sudo', 'systemctl', 'is-active', '--quiet', 'xmrig-orchestrator')
-
-      unless result[:success]
-        # Not running, no need to restart
-        return Result.success("Orchestrator not running, no restart needed")
-      end
-
-      logger.info ""
-      logger.info "   Restarting orchestrator to apply updates..."
-
-      # Restart the service
+    def restart_services
+      # Restart orchestrator service (controls mining operations)
       result = run_command('sudo', 'systemctl', 'restart', 'xmrig-orchestrator')
 
       unless result[:success]
@@ -139,18 +119,30 @@ module Installer
         )
       end
 
-      # Wait a moment for service to start
+      logger.info "   ✓ Orchestrator restarted"
+
+      # Restart xmrig service (actual mining process)
+      # May not be running if mining is stopped - that's OK
+      result = run_command('sudo', 'systemctl', 'restart', 'xmrig')
+
+      if result[:success]
+        logger.info "   ✓ XMRig service restarted"
+      else
+        logger.info "   ℹ XMRig service not restarted (may not be running)"
+      end
+
+      # Wait for startup
       sleep(2)
 
-      # Verify it's running
+      # Verify orchestrator is running
       result = run_command('sudo', 'systemctl', 'is-active', '--quiet', 'xmrig-orchestrator')
 
       if result[:success]
-        logger.info "   ✓ Orchestrator restarted successfully"
-        Result.success("Orchestrator restarted")
+        logger.info "   ✓ Services verified"
+        Result.success("Services restarted")
       else
         Result.failure(
-          "Orchestrator failed to start after restart. Check logs: sudo journalctl -u xmrig-orchestrator -n 50",
+          "Orchestrator failed to start. Check logs: sudo journalctl -u xmrig-orchestrator -n 50",
           data: { check_logs: true }
         )
       end

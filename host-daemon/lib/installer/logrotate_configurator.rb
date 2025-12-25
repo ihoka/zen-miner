@@ -27,10 +27,6 @@ module Installer
       Result.success("Logrotate configured")
     end
 
-    def completed?
-      file_exists?(LOGROTATE_FILE)
-    end
-
     private
 
     def write_logrotate_file

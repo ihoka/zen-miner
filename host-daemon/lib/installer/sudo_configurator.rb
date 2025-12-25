@@ -26,10 +26,6 @@ module Installer
       Result.success("Sudo permissions configured")
     end
 
-    def completed?
-      file_exists?(SUDOERS_FILE) && file_has_mode?(SUDOERS_FILE, REQUIRED_MODE)
-    end
-
     private
 
     def write_and_install_sudoers_file

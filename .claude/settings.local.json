@@ -72,7 +72,12 @@
       "Bash(rake test:*)",
       "Bash(for test in test/installer/*_test.rb)",
       "Bash(while read test)",
-      "Bash(do echo:*)"
+      "Bash(do echo:*)",
+      "Bash(gh pr view:*)",
+      "Bash(git fetch:*)",
+      "Bash(grep:*)",
+      "Bash(git cherry-pick:*)",
+      "Bash(git stash:*)"
     ]
   }
 }
