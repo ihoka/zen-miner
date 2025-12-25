@@ -1,15 +1,15 @@
 # frozen_string_literal: true
 
-require 'minitest/autorun'
-require 'tmpdir'
-require 'fileutils'
+require "minitest/autorun"
+require "tmpdir"
+require "fileutils"
 
 # Set test environment flag to skip version checks
-ENV['RUBY_TEST_ENV'] = 'true'
+ENV["RUBY_TEST_ENV"] = "true"
 
 # Load installer modules
-require_relative '../../host-daemon/lib/installer/result'
-require_relative '../../host-daemon/lib/installer/base_step'
+require_relative "../../host-daemon/lib/installer/result"
+require_relative "../../host-daemon/lib/installer/base_step"
 
 module InstallerTestHelpers
   # Mock all system interactions at once
@@ -19,7 +19,7 @@ module InstallerTestHelpers
     # Stub system() calls
     system_stub = lambda do |cmd, *rest|
       # Handle both forms: system("cmd") and system("cmd", arg1, arg2...)
-      full_cmd = [cmd, *rest].join(' ')
+      full_cmd = [cmd, *rest].join(" ")
 
       system_commands.each do |pattern, return_value|
         if pattern.is_a?(Regexp)
@@ -35,13 +35,13 @@ module InstallerTestHelpers
     open3_stub = lambda do |*args|
       # SECURITY: Verify commands are called with array form, not string interpolation
       # This prevents shell injection vulnerabilities
-      if args.length == 1 && args[0].is_a?(String) && args[0].include?(' ')
+      if args.length == 1 && args[0].is_a?(String) && args[0].include?(" ")
         raise SecurityError, "Command called with string interpolation instead of array form: #{args[0]}\n" \
                            "Use: run_command('sudo', 'command', arg1, arg2)\n" \
                            "Not: run_command('sudo command #{arg1} #{arg2}')"
       end
 
-      cmd_string = args.join(' ')
+      cmd_string = args.join(" ")
       open3_commands.each do |pattern, response|
         if pattern.is_a?(Regexp)
           return [response[:stdout] || "", response[:stderr] || "", mock_status(response[:success] != false)] if cmd_string =~ pattern
@@ -69,11 +69,11 @@ module InstallerTestHelpers
   def mock_command(cmd_pattern, stdout: "", stderr: "", success: true)
     Open3.stub :capture3, lambda { |*args|
       # SECURITY: Verify commands are called with array form, not string interpolation
-      if args.length == 1 && args[0].is_a?(String) && args[0].include?(' ')
+      if args.length == 1 && args[0].is_a?(String) && args[0].include?(" ")
         raise SecurityError, "Command called with string interpolation instead of array form: #{args[0]}"
       end
 
-      cmd_string = args.join(' ')
+      cmd_string = args.join(" ")
       if cmd_pattern.is_a?(Regexp)
         return [stdout, stderr, mock_status(success)] if cmd_string =~ cmd_pattern
       else
@@ -90,7 +90,7 @@ module InstallerTestHelpers
   def mock_system(result)
     if result.is_a?(Hash)
       Kernel.stub :system, lambda { |*args|
-        cmd = args.join(' ')
+        cmd = args.join(" ")
         result.each do |pattern, return_value|
           if pattern.is_a?(Regexp)
             return return_value if cmd =~ pattern

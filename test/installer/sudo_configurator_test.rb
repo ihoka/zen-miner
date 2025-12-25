@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
-require_relative 'test_helper'
-require_relative '../../host-daemon/lib/installer/sudo_configurator'
+require_relative "test_helper"
+require_relative "../../host-daemon/lib/installer/sudo_configurator"
 
 class SudoConfiguratorTest < Minitest::Test
   def setup
@@ -31,7 +31,7 @@ class SudoConfiguratorTest < Minitest::Test
         File.stub :unlink, lambda { |path| true } do
           Open3.stub :capture3, lambda { |*args|
             # Return appropriate stdout for stat command
-            if args.include?('stat')
+            if args.include?("stat")
               ["root:root:440\n", "", mock_status(true)]
             else
               ["", "", mock_status(true)]
@@ -90,8 +90,8 @@ class SudoConfiguratorTest < Minitest::Test
       end
     } do
       Open3.stub :capture3, lambda { |*args|
-        cmd = args.join(' ')
-        if cmd.include?('install')
+        cmd = args.join(" ")
+        if cmd.include?("install")
           ["", "Cannot install file", mock_status(false)]
         else
           ["", "", mock_status(true)]
@@ -125,8 +125,8 @@ class SudoConfiguratorTest < Minitest::Test
       end
     } do
       Open3.stub :capture3, lambda { |*args|
-        cmd = args.join(' ')
-        if cmd.include?('visudo')
+        cmd = args.join(" ")
+        if cmd.include?("visudo")
           ["", "syntax error on line 2", mock_status(false)]
         else
           ["", "", mock_status(true)]
@@ -164,8 +164,8 @@ class SudoConfiguratorTest < Minitest::Test
       end
     } do
       Open3.stub :capture3, lambda { |*args|
-        cmd = args.join(' ')
-        if cmd.include?('visudo')
+        cmd = args.join(" ")
+        if cmd.include?("visudo")
           ["", "syntax error", mock_status(false)]
         else
           ["", "", mock_status(true)]
@@ -197,11 +197,11 @@ class SudoConfiguratorTest < Minitest::Test
   end
 
   def test_sudoers_file_path_is_correct
-    assert_equal '/etc/sudoers.d/xmrig-orchestrator', Installer::SudoConfigurator::SUDOERS_FILE
+    assert_equal "/etc/sudoers.d/xmrig-orchestrator", Installer::SudoConfigurator::SUDOERS_FILE
   end
 
   def test_required_mode_is_0440
-    assert_equal '0440', Installer::SudoConfigurator::REQUIRED_MODE
+    assert_equal "0440", Installer::SudoConfigurator::REQUIRED_MODE
   end
 
   private

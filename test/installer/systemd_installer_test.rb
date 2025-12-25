@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
-require_relative 'test_helper'
-require_relative '../../host-daemon/lib/installer/systemd_installer'
+require_relative "test_helper"
+require_relative "../../host-daemon/lib/installer/systemd_installer"
 
 class SystemdInstallerTest < Minitest::Test
   def setup
@@ -11,15 +11,15 @@ class SystemdInstallerTest < Minitest::Test
   def test_execute_success_when_services_installed
     with_temp_dir do |tmpdir|
       # Create fake service files
-      File.write(File.join(tmpdir, 'xmrig.service'), "[Unit]\nDescription=XMRig")
-      File.write(File.join(tmpdir, 'xmrig-orchestrator.service'), "[Unit]\nDescription=Orchestrator")
+      File.write(File.join(tmpdir, "xmrig.service"), "[Unit]\nDescription=XMRig")
+      File.write(File.join(tmpdir, "xmrig-orchestrator.service"), "[Unit]\nDescription=Orchestrator")
 
       @installer = Installer::SystemdInstaller.new(logger: @logger, script_dir: tmpdir)
 
       Open3.stub :capture3, lambda { |*args|
-        cmd = args.join(' ')
+        cmd = args.join(" ")
         # After restart, is-active check should return true (service is running)
-        if cmd.include?('is-active')
+        if cmd.include?("is-active")
           ["", "", mock_status(true)]
         else
           ["", "", mock_status(true)]
@@ -42,20 +42,20 @@ class SystemdInstallerTest < Minitest::Test
 
   def test_execute_restarts_orchestrator_if_running
     with_temp_dir do |tmpdir|
-      File.write(File.join(tmpdir, 'xmrig.service'), "[Unit]")
-      File.write(File.join(tmpdir, 'xmrig-orchestrator.service'), "[Unit]")
+      File.write(File.join(tmpdir, "xmrig.service"), "[Unit]")
+      File.write(File.join(tmpdir, "xmrig-orchestrator.service"), "[Unit]")
 
       @installer = Installer::SystemdInstaller.new(logger: @logger, script_dir: tmpdir)
 
       call_count = 0
       Open3.stub :capture3, lambda { |*args|
-        cmd = args.join(' ')
-        if cmd.include?('is-active')
+        cmd = args.join(" ")
+        if cmd.include?("is-active")
           call_count += 1
           # First is-active check: running
           # Second is-active check (after restart): also running
           ["", "", mock_status(true)]
-        elsif cmd.include?('restart')
+        elsif cmd.include?("restart")
           ["", "", mock_status(true)]
         else
           ["", "", mock_status(true)]
@@ -78,14 +78,14 @@ class SystemdInstallerTest < Minitest::Test
   def test_execute_fails_if_orchestrator_restart_fails
     # Updated to match new behavior: installer fails if orchestrator restart fails
     with_temp_dir do |tmpdir|
-      File.write(File.join(tmpdir, 'xmrig.service'), "[Unit]")
-      File.write(File.join(tmpdir, 'xmrig-orchestrator.service'), "[Unit]")
+      File.write(File.join(tmpdir, "xmrig.service"), "[Unit]")
+      File.write(File.join(tmpdir, "xmrig-orchestrator.service"), "[Unit]")
 
       @installer = Installer::SystemdInstaller.new(logger: @logger, script_dir: tmpdir)
 
       Open3.stub :capture3, lambda { |*args|
-        cmd = args.join(' ')
-        if cmd.include?('restart xmrig-orchestrator')
+        cmd = args.join(" ")
+        if cmd.include?("restart xmrig-orchestrator")
           ["", "Failed to restart orchestrator", mock_status(false)]
         else
           ["", "", mock_status(true)]
@@ -101,7 +101,7 @@ class SystemdInstallerTest < Minitest::Test
   end
 
   def test_execute_fails_when_service_file_not_found
-    @installer = Installer::SystemdInstaller.new(logger: @logger, script_dir: '/nonexistent')
+    @installer = Installer::SystemdInstaller.new(logger: @logger, script_dir: "/nonexistent")
 
     File.stub :exist?, false do
       result = @installer.execute
@@ -113,14 +113,14 @@ class SystemdInstallerTest < Minitest::Test
 
   def test_execute_fails_when_cp_fails
     with_temp_dir do |tmpdir|
-      File.write(File.join(tmpdir, 'xmrig.service'), "[Unit]")
-      File.write(File.join(tmpdir, 'xmrig-orchestrator.service'), "[Unit]")
+      File.write(File.join(tmpdir, "xmrig.service"), "[Unit]")
+      File.write(File.join(tmpdir, "xmrig-orchestrator.service"), "[Unit]")
 
       @installer = Installer::SystemdInstaller.new(logger: @logger, script_dir: tmpdir)
 
       Open3.stub :capture3, lambda { |*args|
-        cmd = args.join(' ')
-        if cmd.include?('cp')
+        cmd = args.join(" ")
+        if cmd.include?("cp")
           ["", "Permission denied", mock_status(false)]
         else
           ["", "", mock_status(true)]
@@ -136,14 +136,14 @@ class SystemdInstallerTest < Minitest::Test
 
   def test_execute_fails_when_daemon_reload_fails
     with_temp_dir do |tmpdir|
-      File.write(File.join(tmpdir, 'xmrig.service'), "[Unit]")
-      File.write(File.join(tmpdir, 'xmrig-orchestrator.service'), "[Unit]")
+      File.write(File.join(tmpdir, "xmrig.service"), "[Unit]")
+      File.write(File.join(tmpdir, "xmrig-orchestrator.service"), "[Unit]")
 
       @installer = Installer::SystemdInstaller.new(logger: @logger, script_dir: tmpdir)
 
       Open3.stub :capture3, lambda { |*args|
-        cmd = args.join(' ')
-        if cmd.include?('daemon-reload')
+        cmd = args.join(" ")
+        if cmd.include?("daemon-reload")
           ["", "Failed to reload", mock_status(false)]
         else
           ["", "", mock_status(true)]
@@ -159,14 +159,14 @@ class SystemdInstallerTest < Minitest::Test
 
   def test_execute_fails_when_enable_fails
     with_temp_dir do |tmpdir|
-      File.write(File.join(tmpdir, 'xmrig.service'), "[Unit]")
-      File.write(File.join(tmpdir, 'xmrig-orchestrator.service'), "[Unit]")
+      File.write(File.join(tmpdir, "xmrig.service"), "[Unit]")
+      File.write(File.join(tmpdir, "xmrig-orchestrator.service"), "[Unit]")
 
       @installer = Installer::SystemdInstaller.new(logger: @logger, script_dir: tmpdir)
 
       Open3.stub :capture3, lambda { |*args|
-        cmd = args.join(' ')
-        if cmd.include?('enable')
+        cmd = args.join(" ")
+        if cmd.include?("enable")
           ["", "Service not found", mock_status(false)]
         else
           ["", "", mock_status(true)]
@@ -184,17 +184,17 @@ class SystemdInstallerTest < Minitest::Test
     # Purpose: Verify that services are always restarted when installer runs
     # This test validates the "always execute" behavior - services restart every time
     with_temp_dir do |tmpdir|
-      File.write(File.join(tmpdir, 'xmrig.service'), "[Unit]")
-      File.write(File.join(tmpdir, 'xmrig-orchestrator.service'), "[Unit]")
+      File.write(File.join(tmpdir, "xmrig.service"), "[Unit]")
+      File.write(File.join(tmpdir, "xmrig-orchestrator.service"), "[Unit]")
 
       @installer = Installer::SystemdInstaller.new(logger: @logger, script_dir: tmpdir)
 
       restart_count = 0
 
       Open3.stub :capture3, lambda { |*args|
-        cmd = args.join(' ')
+        cmd = args.join(" ")
         # Count service restart operations
-        restart_count += 1 if cmd.include?('systemctl restart')
+        restart_count += 1 if cmd.include?("systemctl restart")
         ["", "", mock_status(true)]
       } do
         Kernel.stub :sleep, nil do

@@ -47,7 +47,7 @@ module OrchestratorUpdater
       return false if hostname.length > MAX_HOSTNAME_LENGTH
 
       # Split into labels and validate each one
-      labels = hostname.split('.')
+      labels = hostname.split(".")
       return false if labels.empty?
       return false if labels.any? { |label| !label.match?(LABEL_REGEX) }
 
@@ -96,7 +96,7 @@ module OrchestratorUpdater
       # Append to file (idempotent - won't add duplicates)
       existing_content = File.exist?(KNOWN_HOSTS_FILE) ? File.read(KNOWN_HOSTS_FILE) : ""
       unless existing_content.include?(entry)
-        File.open(KNOWN_HOSTS_FILE, 'a') do |f|
+        File.open(KNOWN_HOSTS_FILE, "a") do |f|
           f.puts entry
         end
         puts "✓ Added #{hostname} to known hosts"
@@ -117,7 +117,7 @@ module OrchestratorUpdater
     # @return [String, nil] host key or nil if failed
     def self.get_host_key(hostname, ssh_user)
       # Use ssh-keyscan to get host key
-      stdout, stderr, status = Open3.capture3('ssh-keyscan', '-H', hostname)
+      stdout, stderr, status = Open3.capture3("ssh-keyscan", "-H", hostname)
 
       unless status.success?
         warn "ssh-keyscan failed for #{hostname}: #{stderr}"
@@ -126,7 +126,7 @@ module OrchestratorUpdater
 
       # Parse the output - format is: "hostname algorithm key"
       # ssh-keyscan returns hashed hostnames with -H flag
-      keys = stdout.lines.reject { |line| line.start_with?('#') }
+      keys = stdout.lines.reject { |line| line.start_with?("#") }
       return nil if keys.empty?
 
       # Return first valid key
@@ -141,7 +141,7 @@ module OrchestratorUpdater
       return [] unless File.exist?(KNOWN_HOSTS_FILE)
 
       File.readlines(KNOWN_HOSTS_FILE, chomp: true)
-        .reject { |line| line.strip.empty? || line.start_with?('#') }
+        .reject { |line| line.strip.empty? || line.start_with?("#") }
         .map { |line| line.split.first }
         .compact
     end
@@ -168,9 +168,9 @@ module OrchestratorUpdater
     def self.verify_remote_checksum(hostname, remote_path, expected_checksum, ssh_user: "deploy")
       # Get checksum from remote host
       stdout, stderr, status = Open3.capture3(
-        'ssh',
-        '-o', 'ConnectTimeout=5',
-        '-o', 'StrictHostKeyChecking=yes',
+        "ssh",
+        "-o", "ConnectTimeout=5",
+        "-o", "StrictHostKeyChecking=yes",
         "#{ssh_user}@#{hostname}",
         "sha256sum #{Shellwords.escape(remote_path)}"
       )
@@ -309,17 +309,17 @@ module OrchestratorUpdater
       # Use array form to prevent shell interpretation
       # Add timeout wrapper and connection monitoring
       ssh_args = [
-        'timeout', '300',  # 5 minute overall timeout
-        'ssh',
-        '-o', 'ConnectTimeout=5',
-        '-o', 'ServerAliveInterval=5',    # Detect dead connections
-        '-o', 'ServerAliveCountMax=3',     # 3 failed keepalives = disconnect
-        '-o', 'StrictHostKeyChecking=yes', # Require known host key
+        "timeout", "300",  # 5 minute overall timeout
+        "ssh",
+        "-o", "ConnectTimeout=5",
+        "-o", "ServerAliveInterval=5",    # Detect dead connections
+        "-o", "ServerAliveCountMax=3",     # 3 failed keepalives = disconnect
+        "-o", "StrictHostKeyChecking=yes", # Require known host key
         "#{@ssh_user}@#{@hostname}",
         command
       ]
 
-      log_command(ssh_args.join(' ')) if @verbose
+      log_command(ssh_args.join(" ")) if @verbose
 
       Open3.capture3(*ssh_args)
     end
@@ -327,15 +327,15 @@ module OrchestratorUpdater
     def scp(source, destination)
       # Use array form to prevent shell interpretation
       scp_args = [
-        'scp',
-        '-q',
-        '-o', 'ConnectTimeout=5',
-        '-o', 'StrictHostKeyChecking=yes',  # Require known host key
+        "scp",
+        "-q",
+        "-o", "ConnectTimeout=5",
+        "-o", "StrictHostKeyChecking=yes",  # Require known host key
         source,
         "#{@ssh_user}@#{@hostname}:#{destination}"
       ]
 
-      log_command(scp_args.join(' ')) if @verbose
+      log_command(scp_args.join(" ")) if @verbose
 
       Open3.capture3(*scp_args)
     end
@@ -453,7 +453,7 @@ module OrchestratorUpdater
       puts "Deployment strategy: #{max_parallel} parallel workers"
       puts
 
-      pool = Concurrent::FixedThreadPool.new(max_parallel, name: 'orchestrator-deploy')
+      pool = Concurrent::FixedThreadPool.new(max_parallel, name: "orchestrator-deploy")
 
       futures = @hosts.map do |hostname|
         Concurrent::Future.execute(executor: pool) do

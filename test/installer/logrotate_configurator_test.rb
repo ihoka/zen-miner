@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
-require_relative 'test_helper'
-require_relative '../../host-daemon/lib/installer/logrotate_configurator'
+require_relative "test_helper"
+require_relative "../../host-daemon/lib/installer/logrotate_configurator"
 
 class LogrotateConfiguratorTest < Minitest::Test
   def setup
@@ -50,7 +50,7 @@ class LogrotateConfiguratorTest < Minitest::Test
   end
 
   def test_logrotate_file_path_is_correct
-    assert_equal '/etc/logrotate.d/xmrig', Installer::LogrotateConfigurator::LOGROTATE_FILE
+    assert_equal "/etc/logrotate.d/xmrig", Installer::LogrotateConfigurator::LOGROTATE_FILE
   end
 
   private
