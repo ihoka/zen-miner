@@ -58,19 +58,15 @@ class XmrigOrchestratorTestWrapper
     @logger.info "Processing command: #{cmd['action']} (ID: #{cmd['id']})"
 
     # Track whether we actually executed a command
-    success = case cmd["action"]
+    result, success = case cmd["action"]
     when "start"
-      result = systemctl("start")
-      $?.success?
+      systemctl("start")
     when "stop"
-      result = systemctl("stop")
-      $?.success?
+      systemctl("stop")
     when "restart"
-      result = systemctl("restart")
-      $?.success?
+      systemctl("restart")
     else
-      result = "Unknown action: #{cmd['action']}"
-      false  # Unknown actions always fail
+      ["Unknown action: #{cmd['action']}", false]
     end
 
     if success
@@ -96,14 +92,11 @@ class XmrigOrchestratorTestWrapper
 
   def systemctl(action)
     # Mock systemctl for testing - don't actually run sudo commands
-    # Simulate execution by setting $? with a real command
-    # This mimics what happens in the real orchestrator when Open3.capture3 is called
+    # Return both output and success status (matching real implementation)
     output = "systemctl #{action} xmrig - OK (test mode)"
+    success = true
 
-    # Simulate successful execution
-    system('true')
-
-    output
+    [output, success]
   end
 end
 
@@ -239,15 +232,16 @@ class XmrigOrchestratorTest < Minitest::Test
     assert_includes log_content, "Command error"
   end
 
-  # Test that valid commands set $? properly
-  def test_valid_commands_set_process_status
+  # Test that valid commands return proper status
+  def test_valid_commands_return_proper_status
     cmd_id = create_command("start")
     cmd = get_command(cmd_id)
 
     @orchestrator.process_command(cmd)
 
-    # After processing a valid command, $? should be set
-    refute_nil $?, "Process status should be set after systemctl call"
-    assert $?.success?, "Process status should indicate success for valid command"
+    # After processing a valid command, it should be marked as completed
+    updated_cmd = get_command(cmd_id)
+    assert_equal "completed", updated_cmd["status"]
+    refute_nil updated_cmd["result"], "Result should be set for completed command"
   end
 end

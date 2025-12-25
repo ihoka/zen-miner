@@ -92,19 +92,15 @@ class XmrigOrchestrator
 
     # Command is already marked as processing by process_pending_commands transaction
     # Track whether we actually executed a command
-    success = case cmd["action"]
+    result, success = case cmd["action"]
     when "start"
-      result = systemctl("start")
-      $?.success?
+      systemctl("start")
     when "stop"
-      result = systemctl("stop")
-      $?.success?
+      systemctl("stop")
     when "restart"
-      result = systemctl("restart")
-      $?.success?
+      systemctl("restart")
     else
-      result = "Unknown action: #{cmd['action']}"
-      false  # Unknown actions always fail
+      ["Unknown action: #{cmd['action']}", false]
     end
 
     if success
@@ -134,14 +130,8 @@ class XmrigOrchestrator
     stdout, stderr, status = Open3.capture3('sudo', 'systemctl', action, 'xmrig')
     output = stdout + stderr
 
-    # Set $? for compatibility with existing code that checks $?.success?
-    # This is a workaround since Open3 doesn't set $? directly
-    unless status.success?
-      # Signal failure by creating a failed Process::Status
-      system('false')
-    end
-
-    output
+    # Return both output and success status
+    [output, status.success?]
   end
 
   def update_health_status
