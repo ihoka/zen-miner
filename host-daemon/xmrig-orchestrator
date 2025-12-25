@@ -91,18 +91,23 @@ class XmrigOrchestrator
     @logger.info "Processing command: #{cmd['action']} (ID: #{cmd['id']})"
 
     # Command is already marked as processing by process_pending_commands transaction
-    result = case cmd["action"]
+    # Track whether we actually executed a command
+    success = case cmd["action"]
     when "start"
-      systemctl("start")
+      result = systemctl("start")
+      $?.success?
     when "stop"
-      systemctl("stop")
+      result = systemctl("stop")
+      $?.success?
     when "restart"
-      systemctl("restart")
+      result = systemctl("restart")
+      $?.success?
     else
-      "Unknown action: #{cmd['action']}"
+      result = "Unknown action: #{cmd['action']}"
+      false  # Unknown actions always fail
     end
 
-    if $?.success?
+    if success
       @db.execute(
         "UPDATE xmrig_commands SET status = 'completed', result = ? WHERE id = ?",
         [result, cmd["id"]]
