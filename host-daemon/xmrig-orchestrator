@@ -285,8 +285,14 @@ class XmrigOrchestrator
       scope.set_extra(:batch_period, "#{@batch_flush_interval}s")
 
       # Send to Sentry
-      event_id = Sentry.capture_message(message)
-      @logger.info "Sentry event sent, ID: #{event_id}"
+      event = Sentry.capture_message(message)
+      if event
+        event_id = event.event_id if event.respond_to?(:event_id)
+        @logger.info "Sentry event sent successfully, ID: #{event_id || 'unknown'}"
+        @logger.info "Event class: #{event.class}, Level: #{level}"
+      else
+        @logger.warn "Sentry.capture_message returned nil - event may have been filtered by before_send hook"
+      end
     rescue => e
       @logger.error "Failed to send to Sentry: #{e.message}"
       @logger.error e.backtrace.join("\n")
