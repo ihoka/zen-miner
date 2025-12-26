@@ -32,31 +32,8 @@ Sentry.init do |config|
   config.release = ENV.fetch("SENTRY_RELEASE", "unknown")
 
   # Privacy: Don't send PII (Personally Identifiable Information)
+  # Sentry SDK 5.x automatically scrubs common PII when this is false
   config.send_default_pii = false
-
-  # Sensitive field scrubbing: automatically filter these fields from error payloads
-  config.sanitize_fields = [
-    # Authentication & Secrets
-    "password",
-    "password_confirmation",
-    "secret",
-    "api_key",
-    "access_token",
-    "auth_token",
-
-    # Mining-specific sensitive data
-    "MONERO_WALLET",
-    "wallet",
-    "wallet_address",
-
-    # Rails credentials
-    "RAILS_MASTER_KEY",
-    "SECRET_KEY_BASE",
-
-    # Database credentials
-    "database_url",
-    "DATABASE_URL"
-  ]
 
   # Only enable Sentry in production and staging environments
   # Development and test environments won't send events to save quota
@@ -112,11 +89,5 @@ Sentry.init do |config|
 
     # Return event to send to Sentry (return nil to drop the event)
     event
-  end
-
-  # Error handling for Sentry itself
-  # If Sentry fails, log locally and continue application operation
-  config.transport.on_error = lambda do |error|
-    Rails.logger.error "Sentry error: #{error.message}"
   end
 end

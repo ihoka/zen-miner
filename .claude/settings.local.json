@@ -81,7 +81,8 @@
       "Bash(rubocop:*)",
       "Bash(curl:*)",
       "Bash(bundle show:*)",
-      "Bash(gh pr edit:*)"
+      "Bash(gh pr edit:*)",
+      "Bash(PARALLEL_WORKERS=1 rails test:*)"
     ]
   }
 }
