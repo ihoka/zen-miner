@@ -10,7 +10,7 @@ module Installer
       { path: '/var/log/xmrig', owner: 'xmrig', group: 'xmrig', mode: '0755' },
       { path: '/etc/xmrig', owner: 'root', group: 'root', mode: '0755' },
       { path: '/var/lib/xmrig-orchestrator/gems', owner: 'xmrig-orchestrator', group: 'xmrig-orchestrator', mode: '0755' },
-      { path: '/mnt/rails-storage', owner: '1000', group: 'deploy', mode: '2775' }
+      { path: '/mnt/rails-storage', owner: 'deploy', group: 'deploy', mode: '2775' }
     ].freeze
 
     FILES = [

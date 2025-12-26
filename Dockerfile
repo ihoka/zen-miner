@@ -60,9 +60,10 @@ RUN SECRET_KEY_BASE_DUMMY=1 ./bin/rails assets:precompile
 FROM base
 
 # Run and own only the runtime files as a non-root user for security
-RUN groupadd --system --gid 1000 rails && \
-    useradd rails --uid 1000 --gid 1000 --create-home --shell /bin/bash
-USER 1000:1000
+# Use UID 1001 and GID 1003 to match the deploy user on the host
+RUN groupadd --system --gid 1003 rails && \
+    useradd rails --uid 1001 --gid 1003 --create-home --shell /bin/bash
+USER 1001:1003
 
 # Copy built artifacts: gems, application
 COPY --chown=rails:rails --from=build "${BUNDLE_PATH}" "${BUNDLE_PATH}"
