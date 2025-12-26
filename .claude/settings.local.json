@@ -82,7 +82,13 @@
       "Bash(curl:*)",
       "Bash(bundle show:*)",
       "Bash(gh pr edit:*)",
-      "Bash(PARALLEL_WORKERS=1 rails test:*)"
+      "Bash(PARALLEL_WORKERS=1 rails test:*)",
+      "Bash(then echo \"master.key exists\")",
+      "Bash(else echo \"master.key NOT found\")",
+      "Bash(fly secrets:*)",
+      "Bash(if [ -f config/credentials/production.key ])",
+      "Bash(then echo \"Production credentials key exists\")",
+      "Bash(else echo \"Production credentials key NOT found - needs to be generated\")"
     ]
   }
 }
