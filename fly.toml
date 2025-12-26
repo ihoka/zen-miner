@@ -22,9 +22,6 @@ RAILS_ENV = 'production'
 # Rails assumes SSL when behind Fly.io proxy
 RAILS_ASSUME_SSL = 'true'
 
-# Run Solid Queue in Puma process
-SOLID_QUEUE_IN_PUMA = 'true'
-
 # Puma configuration
 WEB_CONCURRENCY = '2'
 
