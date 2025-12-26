@@ -6,7 +6,7 @@
 
 Sentry.init do |config|
   # Data Source Name - unique identifier for your Sentry project
-  config.dsn = ENV["SENTRY_DSN"]
+  config.dsn = "https://3e61d7879f993c896d21da48232564ef@o4510600781889536.ingest.us.sentry.io/4510600782151680"
 
   # Enable breadcrumbs for better error context
   # HTTP logger captures external API calls that may cause failures
