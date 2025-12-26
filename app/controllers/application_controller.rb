@@ -35,6 +35,6 @@ class ApplicationController < ActionController::Base
     })
 
     # Tag by hostname for distributed system debugging
-    Sentry.set_tag("hostname", request.host)
+    Sentry.set_tags(hostname: request.host)
   end
 end

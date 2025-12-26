@@ -88,7 +88,10 @@
       "Bash(fly secrets:*)",
       "Bash(if [ -f config/credentials/production.key ])",
       "Bash(then echo \"Production credentials key exists\")",
-      "Bash(else echo \"Production credentials key NOT found - needs to be generated\")"
+      "Bash(else echo \"Production credentials key NOT found - needs to be generated\")",
+      "Bash(fly logs:*)",
+      "Bash(fly ssh console:*)",
+      "Bash(fly deploy:*)"
     ]
   }
 }
