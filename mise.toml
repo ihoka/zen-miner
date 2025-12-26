@@ -1,4 +1,5 @@
 [tools]
+flyctl = "latest"
 
 [env]
 XMRIG_PATH = "/usr/bin"
