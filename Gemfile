@@ -46,6 +46,10 @@ gem "image_processing", "~> 1.2"
 # Parallel execution for deployment operations
 gem "concurrent-ruby", "~> 1.2"
 
+# Error tracking and performance monitoring [https://sentry.io]
+gem "sentry-ruby", "~> 5.22"
+gem "sentry-rails", "~> 5.22"
+
 group :development, :test do
   # See https://guides.rubyonrails.org/debugging_rails_applications.html#debugging-with-the-debug-gem
   gem "debug", platforms: %i[ mri windows ], require: "debug/prelude"
