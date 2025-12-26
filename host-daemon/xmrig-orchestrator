@@ -31,18 +31,21 @@ if ENV["SENTRY_DSN"]
 
       # Same wallet filtering as Rails app
       config.before_send = lambda do |event, _hint|
+        STDERR.puts "[before_send] Processing event: #{event.message[0..100] rescue 'N/A'}, level: #{event.level}"
+
         # CRITICAL: Detect Monero wallet addresses and drop event
         monero_wallet_pattern = /4[0-9AB][1-9A-HJ-NP-Za-km-z]{93}/
         event_json = event.to_json
 
         if event_json.match?(monero_wallet_pattern)
-          STDERR.puts "Sentry event contains Monero wallet - dropping for security"
+          STDERR.puts "[before_send] Event contains Monero wallet - dropping for security"
           return nil
         end
 
         # Tag all events with component and hostname
         event.tags[:component] = "orchestrator"
         event.tags[:hostname] = Socket.gethostname
+        STDERR.puts "[before_send] Event approved, tags: component=orchestrator, hostname=#{Socket.gethostname}"
         event
       end
 
