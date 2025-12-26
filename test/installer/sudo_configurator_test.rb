@@ -41,7 +41,7 @@ class SudoConfiguratorTest < Minitest::Test
               result = @configurator.execute
 
               assert result.success?
-              assert_equal "Sudo permissions configured", result.message
+              assert_equal "Sudo permissions configured for xmrig-orchestrator and deploy users", result.message
 
               # Verify all steps were logged
               messages = @logger.messages.map { |_, msg| msg }
@@ -185,7 +185,7 @@ class SudoConfiguratorTest < Minitest::Test
   end
 
   def test_sudoers_content_includes_required_commands
-    content = Installer::SudoConfigurator::SUDOERS_CONTENT
+    content = Installer::SudoConfigurator::ORCHESTRATOR_SUDOERS_CONTENT
 
     assert_includes content, "systemctl start xmrig"
     assert_includes content, "systemctl stop xmrig"
@@ -197,7 +197,7 @@ class SudoConfiguratorTest < Minitest::Test
   end
 
   def test_sudoers_file_path_is_correct
-    assert_equal "/etc/sudoers.d/xmrig-orchestrator", Installer::SudoConfigurator::SUDOERS_FILE
+    assert_equal "/etc/sudoers.d/xmrig-orchestrator", Installer::SudoConfigurator::ORCHESTRATOR_SUDOERS_FILE
   end
 
   def test_required_mode_is_0440

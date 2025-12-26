@@ -307,9 +307,8 @@ module OrchestratorUpdater
 
     def ssh(command)
       # Use array form to prevent shell interpretation
-      # Add timeout wrapper and connection monitoring
+      # Add connection monitoring
       ssh_args = [
-        "timeout", "300",  # 5 minute overall timeout
         "ssh",
         "-o", "ConnectTimeout=5",
         "-o", "ServerAliveInterval=5",    # Detect dead connections

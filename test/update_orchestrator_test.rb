@@ -280,8 +280,7 @@ class SSHExecutorTest < Minitest::Test
 
     # Should pass array of arguments (safe from injection)
     assert_kind_of Array, executed_args
-    assert_equal "timeout", executed_args[0]  # SSH is wrapped with timeout
-    assert_equal "ssh", executed_args[2]      # SSH command is at index 2
+    assert_equal "ssh", executed_args[0]      # SSH command is first
 
     # Should contain SSH options
     assert executed_args.include?("ConnectTimeout=5")
