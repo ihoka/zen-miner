@@ -91,7 +91,12 @@
       "Bash(else echo \"Production credentials key NOT found - needs to be generated\")",
       "Bash(fly logs:*)",
       "Bash(fly ssh console:*)",
-      "Bash(fly deploy:*)"
+      "Bash(fly deploy:*)",
+      "Bash(fly status:*)",
+      "Bash(fly checks:*)",
+      "Bash(fly machine start:*)",
+      "Bash(bin/rails solid_queue:install:*)",
+      "Bash(bin/rails solid_cache:install:*)"
     ]
   }
 }

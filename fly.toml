@@ -13,7 +13,7 @@ auto_rollback = true
 [build]
 
 [deploy]
-release_command = 'bin/rails db:migrate'
+release_command = 'bin/rails db:prepare'
 
 [env]
 # Rails environment
