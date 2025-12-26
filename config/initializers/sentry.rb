@@ -9,8 +9,12 @@ Sentry.init do |config|
   config.dsn = ENV["SENTRY_DSN"]
 
   # Enable breadcrumbs for better error context
-  # Active Support logger captures Rails logs, HTTP logger captures HTTP requests
-  config.breadcrumbs_logger = [ :active_support_logger, :http_logger ]
+  # HTTP logger captures external API calls that may cause failures
+  # Note: Active Support logger removed to reduce memory overhead
+  config.breadcrumbs_logger = [ :http_logger ]
+
+  # Limit breadcrumb accumulation to prevent memory growth in long-running processes
+  config.max_breadcrumbs = 20  # Reduced from default 100
 
   # Performance Monitoring: Sample 10% of transactions
   # Reduce to 0.05 (5%) if approaching quota limits
@@ -23,14 +27,9 @@ Sentry.init do |config|
   config.environment = Rails.env
 
   # Release tracking: correlate errors with specific deployments
-  # Git SHA from environment variable or fallback to git command
-  config.release = ENV.fetch("SENTRY_RELEASE") do
-    begin
-      `git rev-parse HEAD`.chomp
-    rescue
-      "unknown"
-    end
-  end
+  # SENTRY_RELEASE should be set during deployment via Kamal
+  # See config/deploy.yml for environment variable configuration
+  config.release = ENV.fetch("SENTRY_RELEASE", "unknown")
 
   # Privacy: Don't send PII (Personally Identifiable Information)
   config.send_default_pii = false
@@ -83,9 +82,27 @@ Sentry.init do |config|
 
   # Custom before_send hook for additional data scrubbing
   config.before_send = lambda do |event, hint|
+    # CRITICAL: Detect Monero wallet addresses and drop event entirely if found
+    # Monero addresses start with 4 followed by specific base58 characters
+    monero_wallet_pattern = /4[0-9AB][1-9A-HJ-NP-Za-km-z]{93}/
+
+    # Convert event to JSON for comprehensive searching
+    event_json = event.to_json
+    if event_json.match?(monero_wallet_pattern)
+      Rails.logger.error "Sentry event contains Monero wallet address - dropping event for security"
+      return nil  # Drop event entirely
+    end
+
     # Additional scrubbing for database connection strings
     if event.extra[:database_url]
-      event.extra[:database_url] = event.extra[:database_url].gsub(/:[^@]+@/, ":[FILTERED]@")
+      begin
+        uri = URI.parse(event.extra[:database_url])
+        uri.password = "[FILTERED]" if uri.password
+        uri.user = "[FILTERED]" if uri.user
+        event.extra[:database_url] = uri.to_s
+      rescue URI::InvalidURIError
+        event.extra[:database_url] = "[INVALID_URL_FILTERED]"
+      end
     end
 
     # Filter worker_id if it contains sensitive info
