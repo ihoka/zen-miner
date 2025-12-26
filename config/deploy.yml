@@ -73,6 +73,9 @@ env:
     # Production log level
     RAILS_LOG_LEVEL: info
 
+    # Sentry release tracking (git commit SHA)
+    SENTRY_RELEASE: "$(git rev-parse --short HEAD)"
+
     # TEMPORARY: Skip database checks during health check (for initial deployment)
     # Remove this after migrations are run
     HEALTH_CHECK_SKIP_DB: "true"

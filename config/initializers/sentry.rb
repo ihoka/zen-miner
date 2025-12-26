@@ -15,9 +15,9 @@ Sentry.init do |config|
   config.enabled_patches = [:logger]
 
   # Enable breadcrumbs for better error context
-  # HTTP logger captures external API calls that may cause failures
-  # Note: Active Support logger removed to reduce memory overhead
-  config.breadcrumbs_logger = [ :http_logger ]
+  # HTTP logger captures external API calls
+  # Active Support logger captures Rails application activity (jobs, controllers)
+  config.breadcrumbs_logger = [ :active_support_logger, :http_logger ]
 
   # Limit breadcrumb accumulation to prevent memory growth in long-running processes
   config.max_breadcrumbs = 20  # Reduced from default 100

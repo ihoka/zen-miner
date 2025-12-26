@@ -170,11 +170,11 @@ class XmrigOrchestrator
 
   def process_log_line(line)
     # Parse XMRig log format: [YYYY-MM-DD HH:MM:SS.mmm]  LEVEL  message
-    # Only capture ERR and WARNING levels
-    return unless line.match?(/\[[\d:\-\s.]+\]\s+(ERR|WARNING)\s+/)
+    # Capture ERR, ERROR, WARNING, WARN, and INFO levels (case-insensitive)
+    return unless line.match?(/\[[\d:\-\s.]+\]\s+(ERR|ERROR|WARNING|WARN|INFO)\s+/i)
 
-    # Extract severity level
-    severity = line.match(/\[[\d:\-\s.]+\]\s+(ERR|WARNING)/)[1]
+    # Extract severity level (normalize to uppercase)
+    severity = line.match(/\[[\d:\-\s.]+\]\s+(ERR|ERROR|WARNING|WARN|INFO)\s+/i)[1].upcase
 
     # Add to batch
     @log_batch << {
@@ -209,8 +209,10 @@ class XmrigOrchestrator
       @logger.info "Flushing #{@log_batch.size} log entries to Sentry"
 
       # Group by severity for better Sentry organization
-      errors = @log_batch.select { |entry| entry[:severity] == "ERR" }
-      warnings = @log_batch.select { |entry| entry[:severity] == "WARNING" }
+      # Normalize severity levels (ERR/ERROR -> error, WARNING/WARN -> warning, INFO -> info)
+      errors = @log_batch.select { |entry| entry[:severity] =~ /^ERR(OR)?$/i }
+      warnings = @log_batch.select { |entry| entry[:severity] =~ /^WARN(ING)?$/i }
+      infos = @log_batch.select { |entry| entry[:severity] == "INFO" }
 
       # Send errors
       unless errors.empty?
@@ -220,6 +222,11 @@ class XmrigOrchestrator
       # Send warnings
       unless warnings.empty?
         send_batch_to_sentry(warnings, :warning)
+      end
+
+      # Send info logs
+      unless infos.empty?
+        send_batch_to_sentry(infos, :info)
       end
 
       # Clear batch and update flush time
