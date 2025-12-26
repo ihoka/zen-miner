@@ -8,6 +8,12 @@ Sentry.init do |config|
   # Data Source Name - unique identifier for your Sentry project
   config.dsn = "https://3e61d7879f993c896d21da48232564ef@o4510600781889536.ingest.us.sentry.io/4510600782151680"
 
+  # Enable sending logs to Sentry
+  config.enable_logs = true
+
+  # Patch Ruby logger to forward logs
+  config.enabled_patches = [:logger]
+
   # Enable breadcrumbs for better error context
   # HTTP logger captures external API calls that may cause failures
   # Note: Active Support logger removed to reduce memory overhead
