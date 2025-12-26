@@ -24,7 +24,7 @@ Sentry.init do |config|
 
   # Performance Monitoring: Sample 10% of transactions
   # Reduce to 0.05 (5%) if approaching quota limits
-  config.traces_sample_rate = Rails.env.production? ? 0.1 : 0.5
+  config.traces_sample_rate = 1.0
 
   # Profiling: Sample 10% of transactions for performance profiling
   config.profiles_sample_rate = Rails.env.production? ? 0.1 : 0.5
