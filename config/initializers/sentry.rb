@@ -76,6 +76,13 @@ Sentry.init do |config|
       return nil  # Drop event entirely
     end
 
+    # Filter cloudflare-rails cache initialization errors
+    # These are benign - the gem gracefully falls back to hardcoded IPs
+    if event.message&.include?("cloudflare-rails: error fetching ip addresses") ||
+       event.message&.include?("Could not find table 'solid_cache_entries'")
+      return nil  # Drop event - this is expected during initialization
+    end
+
     # Additional scrubbing for database connection strings
     if event.extra[:database_url]
       begin

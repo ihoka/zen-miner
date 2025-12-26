@@ -100,7 +100,11 @@
       "WebFetch(domain:github.com)",
       "Bash(bundle exec rails test:*)",
       "Bash(bin/update-orchestrators-ssh:*)",
-      "Bash(ssh-keyscan:*)"
+      "Bash(ssh-keyscan:*)",
+      "Bash(bundle exec rails:*)",
+      "Bash(sqlite3:*)",
+      "Bash(RAILS_ENV=development bin/rails:*)",
+      "Bash(bundle info:*)"
     ]
   }
 }
