@@ -8,59 +8,59 @@ kill_signal = 'SIGINT'
 kill_timeout = '5s'
 
 [experimental]
-  auto_rollback = true
+auto_rollback = true
 
 [build]
 
 [deploy]
-  release_command = 'bin/rails db:migrate'
+release_command = 'bin/rails db:migrate'
 
 [env]
-  # Rails environment
-  RAILS_ENV = 'production'
+# Rails environment
+RAILS_ENV = 'production'
 
-  # Rails assumes SSL when behind Fly.io proxy
-  RAILS_ASSUME_SSL = 'true'
+# Rails assumes SSL when behind Fly.io proxy
+RAILS_ASSUME_SSL = 'true'
 
-  # Run Solid Queue in Puma process
-  SOLID_QUEUE_IN_PUMA = 'true'
+# Run Solid Queue in Puma process
+SOLID_QUEUE_IN_PUMA = 'true'
 
-  # Puma configuration
-  WEB_CONCURRENCY = '2'
+# Puma configuration
+WEB_CONCURRENCY = '2'
 
-  # Rails log level
-  RAILS_LOG_LEVEL = 'info'
+# Rails log level
+RAILS_LOG_LEVEL = 'info'
 
-  # Worker ID (Fly.io machine ID)
-  WORKER_ID = '${FLY_MACHINE_ID}'
+# Worker ID (Fly.io machine ID)
+WORKER_ID = '${FLY_MACHINE_ID}'
 
 [http_service]
-  internal_port = 80
-  force_https = true
-  auto_stop_machines = false
-  auto_start_machines = true
-  min_machines_running = 1
-  processes = ['app']
+internal_port = 8080
+force_https = true
+auto_stop_machines = false
+auto_start_machines = true
+min_machines_running = 1
+processes = ['app']
 
-  [http_service.concurrency]
-    type = 'connections'
-    hard_limit = 1000
-    soft_limit = 1000
+[http_service.concurrency]
+type = 'connections'
+hard_limit = 1000
+soft_limit = 1000
 
-  [[http_service.checks]]
-    grace_period = '10s'
-    interval = '30s'
-    method = 'GET'
-    timeout = '5s'
-    path = '/up'
+[[http_service.checks]]
+grace_period = '10s'
+interval = '30s'
+method = 'GET'
+timeout = '5s'
+path = '/up'
 
 [[vm]]
-  size = 'shared-cpu-1x'
-  memory = '512mb'
-  processes = ['app']
+size = 'shared-cpu-1x'
+memory = '512mb'
+processes = ['app']
 
 # Persistent volume for SQLite database
 [[mounts]]
-  source = 'zen_miner_data'
-  destination = '/rails/storage'
-  initial_size = '1gb'
+source = 'zen_miner_data'
+destination = '/rails/storage'
+initial_size = '1gb'
