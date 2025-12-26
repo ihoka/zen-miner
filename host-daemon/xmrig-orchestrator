@@ -169,12 +169,22 @@ class XmrigOrchestrator
   end
 
   def process_log_line(line)
-    # Parse XMRig log format: [YYYY-MM-DD HH:MM:SS.mmm]  LEVEL  message
-    # Capture ERR, ERROR, WARNING, WARN, and INFO levels (case-insensitive)
-    return unless line.match?(/\[[\d:\-\s.]+\]\s+(ERR|ERROR|WARNING|WARN|INFO)\s+/i)
+    # Parse XMRig log format: [YYYY-MM-DD HH:MM:SS.mmm]  category  message
+    # XMRig uses categories (net, msr, cpu, etc.) not traditional log levels
+    # We'll capture lines based on error/warning keywords in the message
 
-    # Extract severity level (normalize to uppercase)
-    severity = line.match(/\[[\d:\-\s.]+\]\s+(ERR|ERROR|WARNING|WARN|INFO)\s+/i)[1].upcase
+    # Match XMRig timestamp format
+    return unless line.match?(/\[[\d:\-\s.]+\]\s+\w+\s+/)
+
+    # Determine severity based on message content
+    severity = case line
+    when /FAILED|ERROR|FATAL|EXCEPTION|CRASH/i
+      "ERROR"
+    when /WARN|WARNING|UNAVAILABLE|CANNOT|DISABLED/i
+      "WARNING"
+    else
+      "INFO"
+    end
 
     # Add to batch
     @log_batch << {
