@@ -182,7 +182,13 @@ bin/kamal app exec 'bin/rails runner "raise '\''Test error for Sentry'\''"'
 To test Sentry integration locally:
 
 1. Create a separate Sentry project for development
-2. Add to `.env.development.local` (gitignored):
+2. Add to `.mise.local.toml` (gitignored):
+   ```toml
+   [env]
+   SENTRY_DSN = "https://YOUR_DEV_DSN@o0.ingest.sentry.io/DEV_PROJECT_ID"
+   ```
+
+   Or if using `.env.development.local`:
    ```
    SENTRY_DSN=https://YOUR_DEV_DSN@o0.ingest.sentry.io/DEV_PROJECT_ID
    ```
