@@ -259,6 +259,8 @@ class XmrigOrchestrator
     count = batch.size
     message = "XMRig #{level.upcase}: #{count} #{level}(s) in batch"
 
+    @logger.info "Sending #{count} #{level} logs to Sentry with message: #{message}"
+
     Sentry.with_scope do |scope|
       scope.set_tag("component", "xmrig")
       scope.set_tag("hostname", @hostname)
@@ -283,7 +285,11 @@ class XmrigOrchestrator
       scope.set_extra(:batch_period, "#{@batch_flush_interval}s")
 
       # Send to Sentry
-      Sentry.capture_message(message)
+      event_id = Sentry.capture_message(message)
+      @logger.info "Sentry event sent, ID: #{event_id}"
+    rescue => e
+      @logger.error "Failed to send to Sentry: #{e.message}"
+      @logger.error e.backtrace.join("\n")
     end
   end
 
