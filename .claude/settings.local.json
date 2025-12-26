@@ -77,7 +77,11 @@
       "Bash(git fetch:*)",
       "Bash(grep:*)",
       "Bash(git cherry-pick:*)",
-      "Bash(git stash:*)"
+      "Bash(git stash:*)",
+      "Bash(rubocop:*)",
+      "Bash(curl:*)",
+      "Bash(bundle show:*)",
+      "Bash(gh pr edit:*)"
     ]
   }
 }
