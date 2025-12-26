@@ -5,7 +5,7 @@ After=network.target
 [Service]
 Type=simple
 User=xmrig
-ExecStart=/usr/local/bin/xmrig --config=/etc/xmrig/config.json
+ExecStart=/usr/bin/xmrig --config=/etc/xmrig/config.json
 Restart=on-failure
 RestartSec=10s
 StandardOutput=append:/var/log/xmrig/xmrig.log
