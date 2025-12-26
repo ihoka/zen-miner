@@ -12,6 +12,9 @@ RestartSec=10s
 Environment="XMRIG_DB_PATH=/mnt/rails-storage/production.sqlite3"
 Environment="GEM_HOME=/var/lib/xmrig-orchestrator/gems"
 Environment="GEM_PATH=/var/lib/xmrig-orchestrator/gems:/usr/lib/ruby/gems/3.4.0"
+Environment="SENTRY_DSN=https://3e61d7879f993c896d21da48232564ef@o4510600781889536.ingest.us.sentry.io/4510600782151680"
+Environment="SENTRY_ENVIRONMENT=orchestrator-production"
+Environment="SENTRY_RELEASE=unknown"
 StandardOutput=append:/var/log/xmrig/orchestrator.log
 StandardError=append:/var/log/xmrig/orchestrator.log
 

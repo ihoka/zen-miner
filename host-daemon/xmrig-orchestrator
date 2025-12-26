@@ -9,6 +9,7 @@ require "bundler/inline"
 gemfile do
   source "https://rubygems.org"
   gem "sqlite3", "~> 2.4"
+  gem "sentry-ruby", "~> 5.22"
 end
 
 require "json"
@@ -17,6 +18,45 @@ require "socket"
 require "logger"
 require "time"
 require "open3"
+require "sentry-ruby"
+
+# Initialize Sentry if DSN provided
+if ENV["SENTRY_DSN"]
+  begin
+    Sentry.init do |config|
+      config.dsn = ENV["SENTRY_DSN"]
+      config.environment = ENV.fetch("SENTRY_ENVIRONMENT", "orchestrator-production")
+      config.release = ENV.fetch("SENTRY_RELEASE", "unknown")
+      config.server_name = Socket.gethostname
+
+      # Same wallet filtering as Rails app
+      config.before_send = lambda do |event, _hint|
+        # CRITICAL: Detect Monero wallet addresses and drop event
+        monero_wallet_pattern = /4[0-9AB][1-9A-HJ-NP-Za-km-z]{93}/
+        event_json = event.to_json
+
+        if event_json.match?(monero_wallet_pattern)
+          STDERR.puts "Sentry event contains Monero wallet - dropping for security"
+          return nil
+        end
+
+        # Tag all events with component and hostname
+        event.tags[:component] = "orchestrator"
+        event.tags[:hostname] = Socket.gethostname
+        event
+      end
+
+      # Disable in test/development
+      config.enabled_environments = %w[production staging orchestrator-production]
+    end
+    STDERR.puts "Sentry initialized for orchestrator (#{Socket.gethostname})"
+  rescue => e
+    STDERR.puts "Failed to initialize Sentry: #{e.message}"
+    STDERR.puts "Continuing without Sentry integration"
+  end
+else
+  STDERR.puts "SENTRY_DSN not set - Sentry disabled for orchestrator"
+end
 
 class XmrigOrchestrator
   POLL_INTERVAL = 10 # seconds
@@ -42,6 +82,18 @@ class XmrigOrchestrator
     @db.execute("PRAGMA journal_mode=WAL")
     @db.execute("PRAGMA synchronous=NORMAL")
     @db.execute("PRAGMA busy_timeout=5000")
+
+    # Log monitoring configuration
+    @xmrig_log_path = "/var/log/xmrig/xmrig.log"
+    @log_file_handle = nil
+    @log_file_position = 0
+    @log_file_inode = nil
+    @log_batch = []
+    @last_flush_time = Time.now
+
+    # Batch configuration
+    @batch_flush_interval = 180  # 3 minutes
+    @batch_max_size = 100
   end
 
   def run
@@ -53,16 +105,170 @@ class XmrigOrchestrator
       begin
         process_pending_commands
         update_health_status
+        monitor_xmrig_logs
+        flush_logs_if_needed
         sleep POLL_INTERVAL
       rescue => e
         @logger.error "Error in main loop: #{e.message}"
         @logger.error e.backtrace.join("\n")
+
+        # Capture orchestrator errors to Sentry too
+        Sentry.capture_exception(e) if ENV["SENTRY_DSN"]
+
         sleep 30 # Back off on errors
       end
     end
   end
 
   private
+
+  def monitor_xmrig_logs
+    return unless ENV["SENTRY_DSN"]  # Skip if Sentry not configured
+    return unless File.exist?(@xmrig_log_path)
+
+    # Initialize file handle on first read
+    if @log_file_handle.nil?
+      begin
+        @log_file_handle = File.open(@xmrig_log_path, "r")
+        @log_file_position = @log_file_handle.size  # Start at end (don't read old logs)
+        @log_file_inode = File.stat(@xmrig_log_path).ino
+        @logger.info "Started monitoring XMRig logs: #{@xmrig_log_path}"
+      rescue => e
+        @logger.error "Failed to open XMRig log file: #{e.message}"
+        return
+      end
+    end
+
+    # Check for log rotation (inode change)
+    begin
+      current_inode = File.stat(@xmrig_log_path).ino
+      if current_inode != @log_file_inode
+        @logger.info "Log rotation detected, reopening file"
+        @log_file_handle.close
+        @log_file_handle = File.open(@xmrig_log_path, "r")
+        @log_file_position = 0
+        @log_file_inode = current_inode
+      end
+    rescue => e
+      @logger.error "Error checking log file: #{e.message}"
+      return
+    end
+
+    # Read new lines
+    begin
+      @log_file_handle.seek(@log_file_position)
+
+      while line = @log_file_handle.gets
+        process_log_line(line.strip)
+      end
+
+      @log_file_position = @log_file_handle.pos
+    rescue => e
+      @logger.error "Error reading log file: #{e.message}"
+    end
+  end
+
+  def process_log_line(line)
+    # Parse XMRig log format: [YYYY-MM-DD HH:MM:SS.mmm]  LEVEL  message
+    # Only capture ERR and WARNING levels
+    return unless line.match?(/\[[\d:\-\s.]+\]\s+(ERR|WARNING)\s+/)
+
+    # Extract severity level
+    severity = line.match(/\[[\d:\-\s.]+\]\s+(ERR|WARNING)/)[1]
+
+    # Add to batch
+    @log_batch << {
+      line: line,
+      severity: severity,
+      timestamp: Time.now.utc.iso8601,
+      hostname: @hostname
+    }
+
+    @logger.debug "Captured #{severity} log line (batch size: #{@log_batch.size})"
+
+    # Flush immediately if batch is full
+    flush_logs_to_sentry if @log_batch.size >= @batch_max_size
+  end
+
+  def flush_logs_if_needed
+    return unless ENV["SENTRY_DSN"]
+    return if @log_batch.empty?
+
+    # Check time-based flush
+    time_since_flush = Time.now - @last_flush_time
+
+    if time_since_flush >= @batch_flush_interval
+      flush_logs_to_sentry
+    end
+  end
+
+  def flush_logs_to_sentry
+    return if @log_batch.empty?
+
+    begin
+      @logger.info "Flushing #{@log_batch.size} log entries to Sentry"
+
+      # Group by severity for better Sentry organization
+      errors = @log_batch.select { |entry| entry[:severity] == "ERR" }
+      warnings = @log_batch.select { |entry| entry[:severity] == "WARNING" }
+
+      # Send errors
+      unless errors.empty?
+        send_batch_to_sentry(errors, :error)
+      end
+
+      # Send warnings
+      unless warnings.empty?
+        send_batch_to_sentry(warnings, :warning)
+      end
+
+      # Clear batch and update flush time
+      @log_batch.clear
+      @last_flush_time = Time.now
+
+      @logger.info "Successfully flushed logs to Sentry"
+    rescue => e
+      @logger.error "Failed to flush logs to Sentry: #{e.message}"
+      @logger.error e.backtrace.join("\n")
+
+      # Clear batch anyway to prevent memory buildup
+      @log_batch.clear
+      @last_flush_time = Time.now
+    end
+  end
+
+  def send_batch_to_sentry(batch, level)
+    # Create summary message
+    count = batch.size
+    message = "XMRig #{level.upcase}: #{count} #{level}(s) in batch"
+
+    Sentry.with_scope do |scope|
+      scope.set_tag("component", "xmrig")
+      scope.set_tag("hostname", @hostname)
+      scope.set_level(level)
+
+      # Add first few log lines as breadcrumbs for context
+      batch.first(10).each do |entry|
+        scope.add_breadcrumb(
+          Sentry::Breadcrumb.new(
+            category: "xmrig.log",
+            message: entry[:line],
+            level: level,
+            timestamp: entry[:timestamp]
+          )
+        )
+      end
+
+      # Add all log lines as extra data
+      scope.set_extra(:log_lines, batch.map { |e| e[:line] })
+      scope.set_extra(:log_count, count)
+      scope.set_extra(:log_file, @xmrig_log_path)
+      scope.set_extra(:batch_period, "#{@batch_flush_interval}s")
+
+      # Send to Sentry
+      Sentry.capture_message(message)
+    end
+  end
 
   def process_pending_commands
     # Fetch and mark commands as processing within a transaction to prevent race conditions

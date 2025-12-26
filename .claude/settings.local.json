@@ -96,7 +96,9 @@
       "Bash(fly checks:*)",
       "Bash(fly machine start:*)",
       "Bash(bin/rails solid_queue:install:*)",
-      "Bash(bin/rails solid_cache:install:*)"
+      "Bash(bin/rails solid_cache:install:*)",
+      "WebFetch(domain:github.com)",
+      "Bash(bundle exec rails test:*)"
     ]
   }
 }
