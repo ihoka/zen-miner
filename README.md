@@ -20,6 +20,7 @@ An open source Rails application for orchestrating cryptocurrency mining rigs. M
 - **Asset Pipeline**: Propshaft with Import Maps
 - **Deployment**: Kamal with Docker
 - **Web Server**: Puma with Thruster
+- **Error Tracking**: Sentry (optional)
 
 ## Getting Started
 
