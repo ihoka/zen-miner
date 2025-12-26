@@ -9,6 +9,12 @@ module Installer
     ORCHESTRATOR_SUDOERS_FILE = '/etc/sudoers.d/xmrig-orchestrator'
     ORCHESTRATOR_SUDOERS_CONTENT = <<~SUDOERS
       # Allow xmrig-orchestrator to manage xmrig service without password
+      # Support both /bin and /usr/bin paths for compatibility
+      xmrig-orchestrator ALL=(ALL) NOPASSWD: /usr/bin/systemctl start xmrig
+      xmrig-orchestrator ALL=(ALL) NOPASSWD: /usr/bin/systemctl stop xmrig
+      xmrig-orchestrator ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart xmrig
+      xmrig-orchestrator ALL=(ALL) NOPASSWD: /usr/bin/systemctl is-active xmrig
+      xmrig-orchestrator ALL=(ALL) NOPASSWD: /usr/bin/systemctl status xmrig
       xmrig-orchestrator ALL=(ALL) NOPASSWD: /bin/systemctl start xmrig
       xmrig-orchestrator ALL=(ALL) NOPASSWD: /bin/systemctl stop xmrig
       xmrig-orchestrator ALL=(ALL) NOPASSWD: /bin/systemctl restart xmrig
@@ -19,11 +25,11 @@ module Installer
     DEPLOY_SUDOERS_FILE = '/etc/sudoers.d/deploy'
     DEPLOY_SUDOERS_CONTENT = <<~SUDOERS
       # Allow deploy user to update orchestrator daemon via SSH
-      deploy ALL=(ALL) NOPASSWD: /bin/cp /tmp/xmrig-orchestrator* /usr/local/bin/xmrig-orchestrator
-      deploy ALL=(ALL) NOPASSWD: /bin/chmod +x /usr/local/bin/xmrig-orchestrator
-      deploy ALL=(ALL) NOPASSWD: /bin/systemctl restart xmrig-orchestrator
-      deploy ALL=(ALL) NOPASSWD: /bin/systemctl is-active xmrig-orchestrator
-      deploy ALL=(ALL) NOPASSWD: /bin/systemctl daemon-reload
+      deploy ALL=(ALL) NOPASSWD: /usr/bin/cp /tmp/xmrig-orchestrator* /usr/local/bin/xmrig-orchestrator
+      deploy ALL=(ALL) NOPASSWD: /usr/bin/chmod +x /usr/local/bin/xmrig-orchestrator
+      deploy ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart xmrig-orchestrator
+      deploy ALL=(ALL) NOPASSWD: /usr/bin/systemctl is-active xmrig-orchestrator
+      deploy ALL=(ALL) NOPASSWD: /usr/bin/systemctl daemon-reload
       deploy ALL=(ALL) NOPASSWD: /usr/bin/sha256sum *
       deploy ALL=(ALL) NOPASSWD: /usr/bin/journalctl *
     SUDOERS

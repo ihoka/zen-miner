@@ -187,11 +187,11 @@ class SudoConfiguratorTest < Minitest::Test
   def test_sudoers_content_includes_required_commands
     content = Installer::SudoConfigurator::ORCHESTRATOR_SUDOERS_CONTENT
 
-    assert_includes content, "systemctl start xmrig"
-    assert_includes content, "systemctl stop xmrig"
-    assert_includes content, "systemctl restart xmrig"
-    assert_includes content, "systemctl is-active xmrig"
-    assert_includes content, "systemctl status xmrig"
+    assert_includes content, "/usr/bin/systemctl start xmrig"
+    assert_includes content, "/usr/bin/systemctl stop xmrig"
+    assert_includes content, "/usr/bin/systemctl restart xmrig"
+    assert_includes content, "/usr/bin/systemctl is-active xmrig"
+    assert_includes content, "/usr/bin/systemctl status xmrig"
     assert_includes content, "NOPASSWD"
     assert_includes content, "xmrig-orchestrator"
   end
