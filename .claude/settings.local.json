@@ -104,7 +104,8 @@
       "Bash(bundle exec rails:*)",
       "Bash(sqlite3:*)",
       "Bash(RAILS_ENV=development bin/rails:*)",
-      "Bash(bundle info:*)"
+      "Bash(bundle info:*)",
+      "Bash(kamal deploy:*)"
     ]
   }
 }
