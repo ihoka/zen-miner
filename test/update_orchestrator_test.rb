@@ -572,12 +572,11 @@ class CLITest < Minitest::Test
 
         # Stub File.exist? to return true for source file check
         File.stub :exist?, true do
-          Kernel.stub :exit, lambda { |code|
-            exit_called = true
-            exit_code = code
-            # Don't actually exit - just record the call
-          } do
+          begin
             OrchestratorUpdater::CLI.run(["--yes"])
+          rescue SystemExit => e
+            exit_called = true
+            exit_code = e.status
           end
         end
 
