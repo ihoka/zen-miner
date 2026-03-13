@@ -13,10 +13,11 @@ deploy_timeout: 180
 servers:
   web:
     hosts:
-      - mini-1
-      - miner-beta
-      - miner-gamma
-      - miner-delta
+      # - mini-1
+      # - miner-beta
+      # - miner-gamma
+      # - miner-delta
+      - miner-zeta
     # Resource limits: Keep Rails lightweight so XMRig has CPU/RAM for mining
     options:
       memory: 512m # 512MB for Rails (Puma + Solid Queue + SQLite)

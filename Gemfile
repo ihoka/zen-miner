@@ -49,6 +49,7 @@ gem "concurrent-ruby", "~> 1.2"
 # Error tracking and performance monitoring [https://sentry.io]
 gem "sentry-ruby", "~> 5.28"    # Core SDK for error capture
 gem "sentry-rails", "~> 5.28"  # Rails integration (controllers, jobs, Action Cable)
+gem "stackprof"
 
 group :development, :test do
   # See https://guides.rubyonrails.org/debugging_rails_applications.html#debugging-with-the-debug-gem
