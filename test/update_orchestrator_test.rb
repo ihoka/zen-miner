@@ -333,6 +333,20 @@ class UpdateCoordinatorTest < Minitest::Test
     @options = { yes: true, dry_run: false, verbose: false }
   end
 
+  # Stub out preflight dependencies (filesystem, SSH host keys) so tests
+  # don't hit real hosts or depend on local file state.
+  def with_preflight_stubs(&block)
+    OrchestratorUpdater::ChecksumManager.stub :calculate_local_checksum, "fakechecksum123" do
+      OrchestratorUpdater::KnownHostsManager.stub :verify_host, true do
+        File.stub :exist?, true do
+          File.stub :symlink?, false do
+            yield
+          end
+        end
+      end
+    end
+  end
+
   def test_run_all_hosts_success
     coordinator = OrchestratorUpdater::UpdateCoordinator.new(@hosts, @options)
 
@@ -340,16 +354,20 @@ class UpdateCoordinatorTest < Minitest::Test
     mock_executor = Minitest::Mock.new
     mock_executor.expect :check_connectivity, true
     mock_executor.expect :copy_orchestrator, true, [String]
+    mock_executor.expect :verify_checksum, true, [String]
     mock_executor.expect :update_orchestrator, { success: true, output: "OK", error: "" }
     mock_executor.expect :verify_service, true
     mock_executor.expect :check_connectivity, true
     mock_executor.expect :copy_orchestrator, true, [String]
+    mock_executor.expect :verify_checksum, true, [String]
     mock_executor.expect :update_orchestrator, { success: true, output: "OK", error: "" }
     mock_executor.expect :verify_service, true
 
-    OrchestratorUpdater::SSHExecutor.stub :new, mock_executor do
-      exit_code = coordinator.run
-      assert_equal 0, exit_code
+    with_preflight_stubs do
+      OrchestratorUpdater::SSHExecutor.stub :new, mock_executor do
+        exit_code = coordinator.run
+        assert_equal 0, exit_code
+      end
     end
   end
 
@@ -358,25 +376,28 @@ class UpdateCoordinatorTest < Minitest::Test
 
     # First host succeeds, second fails
     call_count = 0
-    OrchestratorUpdater::SSHExecutor.stub :new, lambda { |hostname, **_opts|
-      call_count += 1
-      if call_count == 1
-        # First host succeeds
-        mock = Minitest::Mock.new
-        mock.expect :check_connectivity, true
-        mock.expect :copy_orchestrator, true, [String]
-        mock.expect :update_orchestrator, { success: true, output: "OK", error: "" }
-        mock.expect :verify_service, true
-        mock
-      else
-        # Second host fails on connectivity
-        mock = Minitest::Mock.new
-        mock.expect :check_connectivity, false
-        mock
+    with_preflight_stubs do
+      OrchestratorUpdater::SSHExecutor.stub :new, lambda { |hostname, **_opts|
+        call_count += 1
+        if call_count == 1
+          # First host succeeds
+          mock = Minitest::Mock.new
+          mock.expect :check_connectivity, true
+          mock.expect :copy_orchestrator, true, [String]
+          mock.expect :verify_checksum, true, [String]
+          mock.expect :update_orchestrator, { success: true, output: "OK", error: "" }
+          mock.expect :verify_service, true
+          mock
+        else
+          # Second host fails on connectivity
+          mock = Minitest::Mock.new
+          mock.expect :check_connectivity, false
+          mock
+        end
+      } do
+        exit_code = coordinator.run
+        assert_equal 1, exit_code  # Should return 1 for any failure
       end
-    } do
-      exit_code = coordinator.run
-      assert_equal 1, exit_code  # Should return 1 for any failure
     end
   end
 
@@ -388,9 +409,11 @@ class UpdateCoordinatorTest < Minitest::Test
     mock_executor.expect :check_connectivity, false
     mock_executor.expect :check_connectivity, false
 
-    OrchestratorUpdater::SSHExecutor.stub :new, mock_executor do
-      exit_code = coordinator.run
-      assert_equal 1, exit_code
+    with_preflight_stubs do
+      OrchestratorUpdater::SSHExecutor.stub :new, mock_executor do
+        exit_code = coordinator.run
+        assert_equal 1, exit_code
+      end
     end
   end
 
@@ -400,16 +423,18 @@ class UpdateCoordinatorTest < Minitest::Test
     # Track which hosts were attempted
     attempted_hosts = []
 
-    OrchestratorUpdater::SSHExecutor.stub :new, lambda { |hostname, **_opts|
-      attempted_hosts << hostname
-      mock = Minitest::Mock.new
-      mock.expect :check_connectivity, false  # All fail
-      mock
-    } do
-      coordinator.run
+    with_preflight_stubs do
+      OrchestratorUpdater::SSHExecutor.stub :new, lambda { |hostname, **_opts|
+        attempted_hosts << hostname
+        mock = Minitest::Mock.new
+        mock.expect :check_connectivity, false  # All fail
+        mock
+      } do
+        coordinator.run
 
-      # Verify all hosts were attempted despite first failure
-      assert_equal @hosts.sort, attempted_hosts.sort
+        # Verify all hosts were attempted despite first failure
+        assert_equal @hosts.sort, attempted_hosts.sort
+      end
     end
   end
 
@@ -424,15 +449,19 @@ class UpdateCoordinatorTest < Minitest::Test
     mock_executor = Minitest::Mock.new
     mock_executor.expect :check_connectivity, true
     mock_executor.expect :copy_orchestrator, true, [String]
+    mock_executor.expect :verify_checksum, true, [String]
     mock_executor.expect :update_orchestrator, { success: true, output: "OK", error: "" }
     mock_executor.expect :verify_service, true
     mock_executor.expect :check_connectivity, true
     mock_executor.expect :copy_orchestrator, true, [String]
+    mock_executor.expect :verify_checksum, true, [String]
     mock_executor.expect :update_orchestrator, { success: true, output: "OK", error: "" }
     mock_executor.expect :verify_service, true
 
-    OrchestratorUpdater::SSHExecutor.stub :new, mock_executor do
-      coordinator.run
+    with_preflight_stubs do
+      OrchestratorUpdater::SSHExecutor.stub :new, mock_executor do
+        coordinator.run
+      end
     end
 
     $stdout = STDOUT
@@ -456,8 +485,10 @@ class UpdateCoordinatorTest < Minitest::Test
     mock_executor.expect :check_connectivity, false
     mock_executor.expect :check_connectivity, false
 
-    OrchestratorUpdater::SSHExecutor.stub :new, mock_executor do
-      coordinator.run
+    with_preflight_stubs do
+      OrchestratorUpdater::SSHExecutor.stub :new, mock_executor do
+        coordinator.run
+      end
     end
 
     $stdout = STDOUT

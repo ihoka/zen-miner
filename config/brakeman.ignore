@@ -26,11 +26,11 @@
     {
       "warning_type": "Command Injection",
       "warning_code": 14,
-      "fingerprint": "618db4278746d1743889bbc9885a870bad0323974353b125e8fe43580a952751",
+      "fingerprint": "c29d2a3253b1396a4cccd843ea2fbcabb82fe272fd7d3c2d9c11a0dd732f8cee",
       "check_name": "Execute",
       "message": "Possible command injection",
       "file": "lib/orchestrator_updater.rb",
-      "line": 174,
+      "line": 178,
       "link": "https://brakemanscanner.org/docs/warning_types/command_injection/",
       "code": "Open3.capture3(\"ssh\", \"-o\", \"ConnectTimeout=5\", \"-o\", \"StrictHostKeyChecking=yes\", \"#{ssh_user}@#{hostname}\", \"sha256sum #{Shellwords.escape(remote_path)}\")",
       "render_path": null,
@@ -44,7 +44,7 @@
       "cwe_id": [
         77
       ],
-      "note": "Input strings are sanitised"
+      "note": "Inputs validated: hostname via HostValidator.valid?, ssh_user via regex allowlist"
     },
     {
       "warning_type": "Command Injection",

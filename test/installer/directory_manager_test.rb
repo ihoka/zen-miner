@@ -164,9 +164,9 @@ class DirectoryManagerTest < Minitest::Test
   def test_rails_storage_has_correct_permissions
     rails_storage = Installer::DirectoryManager::DIRECTORIES.find { |d| d[:path] == "/mnt/rails-storage" }
 
-    assert_equal "1000", rails_storage[:owner]
+    assert_equal "deploy", rails_storage[:owner]
     assert_equal "deploy", rails_storage[:group]
-    assert_equal "0775", rails_storage[:mode]
+    assert_equal "2775", rails_storage[:mode]
   end
 
   private
