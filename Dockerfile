@@ -73,11 +73,11 @@ COPY --chown=rails:rails --from=build /rails /rails
 ENTRYPOINT ["/rails/bin/docker-entrypoint"]
 
 # Start server via Thruster by default, this can be overwritten at runtime
-# Thruster binds to port 8080 (HTTP_PORT), Puma uses its default port 3000 internally
-EXPOSE 8080
+# Thruster binds to port 80, Puma uses its default port 3000 internally
+EXPOSE 80
 
-# Set Thruster to bind to 0.0.0.0:8080
-ENV HTTP_PORT=8080 \
+# Kamal proxy expects port 80 by default
+ENV HTTP_PORT=80 \
     HTTP_HOST=0.0.0.0
 
 CMD ["./bin/thrust", "./bin/rails", "server"]
