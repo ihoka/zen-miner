@@ -1,6 +1,9 @@
 # Custom health check controller
 # Supports both simple checks (no DB) and full checks (with DB)
 class HealthController < ApplicationController
+  skip_before_action :set_sentry_context
+  allow_browser versions: :all
+
   def show
     # Check if we should skip database checks (for initial deployment)
     skip_db = params[:skip_db] == "true" || ENV["HEALTH_CHECK_SKIP_DB"] == "true"
