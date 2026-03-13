@@ -1,5 +1,10 @@
 #!/bin/bash -e
 
+# Strip leading "--" passed by Kamal for interactive commands
+if [ "$1" = "--" ]; then
+  shift
+fi
+
 # Enable higher verbosity for troubleshooting
 if [ "${@: -2:1}" == "./bin/rails" ] && [ "${@: -1:1}" == "server" ]; then
   ./bin/rails db:prepare
