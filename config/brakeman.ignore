@@ -1,0 +1,74 @@
+{
+  "ignored_warnings": [
+    {
+      "warning_type": "Command Injection",
+      "warning_code": 14,
+      "fingerprint": "39cd4f7d07c2994f25ca3a331edd34bbad8f8d2744d81ec4f4f54c48515aa174",
+      "check_name": "Execute",
+      "message": "Possible command injection",
+      "file": "lib/orchestrator_updater.rb",
+      "line": 323,
+      "link": "https://brakemanscanner.org/docs/warning_types/command_injection/",
+      "code": "Open3.capture3(\"ssh\", \"-o\", \"ConnectTimeout=5\", \"-o\", \"ServerAliveInterval=5\", \"-o\", \"ServerAliveCountMax=3\", \"-o\", \"StrictHostKeyChecking=yes\", \"#{\"deploy\"}@#{hostname}\", command)",
+      "render_path": null,
+      "location": {
+        "type": "method",
+        "class": "OrchestratorUpdater::SSHExecutor",
+        "method": "ssh"
+      },
+      "user_input": "hostname",
+      "confidence": "Medium",
+      "cwe_id": [
+        77
+      ],
+      "note": "Input strings are sanitised"
+    },
+    {
+      "warning_type": "Command Injection",
+      "warning_code": 14,
+      "fingerprint": "c29d2a3253b1396a4cccd843ea2fbcabb82fe272fd7d3c2d9c11a0dd732f8cee",
+      "check_name": "Execute",
+      "message": "Possible command injection",
+      "file": "lib/orchestrator_updater.rb",
+      "line": 178,
+      "link": "https://brakemanscanner.org/docs/warning_types/command_injection/",
+      "code": "Open3.capture3(\"ssh\", \"-o\", \"ConnectTimeout=5\", \"-o\", \"StrictHostKeyChecking=yes\", \"#{ssh_user}@#{hostname}\", \"sha256sum #{Shellwords.escape(remote_path)}\")",
+      "render_path": null,
+      "location": {
+        "type": "method",
+        "class": "OrchestratorUpdater::ChecksumManager",
+        "method": "s(:self).verify_remote_checksum"
+      },
+      "user_input": "ssh_user",
+      "confidence": "Medium",
+      "cwe_id": [
+        77
+      ],
+      "note": "Inputs validated: hostname via HostValidator.valid?, ssh_user via regex allowlist"
+    },
+    {
+      "warning_type": "Command Injection",
+      "warning_code": 14,
+      "fingerprint": "69b842ef19633b170f4963c417fd6d834f1e9614b3414896cc3f0bdd753cd783",
+      "check_name": "Execute",
+      "message": "Possible command injection",
+      "file": "lib/orchestrator_updater.rb",
+      "line": 339,
+      "link": "https://brakemanscanner.org/docs/warning_types/command_injection/",
+      "code": "Open3.capture3(\"scp\", \"-q\", \"-o\", \"ConnectTimeout=5\", \"-o\", \"StrictHostKeyChecking=yes\", source, \"#{\"deploy\"}@#{hostname}:#{destination}\")",
+      "render_path": null,
+      "location": {
+        "type": "method",
+        "class": "OrchestratorUpdater::SSHExecutor",
+        "method": "scp"
+      },
+      "user_input": "hostname",
+      "confidence": "Medium",
+      "cwe_id": [
+        77
+      ],
+      "note": "Input strings are sanitised"
+    }
+  ],
+  "brakeman_version": "7.1.2"
+}

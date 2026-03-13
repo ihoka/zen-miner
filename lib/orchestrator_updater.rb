@@ -166,13 +166,17 @@ module OrchestratorUpdater
     # @param ssh_user [String] SSH user for connection
     # @return [Boolean] true if checksums match
     def self.verify_remote_checksum(hostname, remote_path, expected_checksum, ssh_user: "deploy")
+      raise HostnameError, "Invalid hostname: #{hostname}" unless HostValidator.valid?(hostname)
+      raise ArgumentError, "Invalid ssh_user" unless ssh_user.match?(/\A[a-zA-Z0-9_-]+\z/)
+
+      escaped_path = Shellwords.escape(remote_path)
       # Get checksum from remote host
       stdout, stderr, status = Open3.capture3(
         "ssh",
         "-o", "ConnectTimeout=5",
         "-o", "StrictHostKeyChecking=yes",
         "#{ssh_user}@#{hostname}",
-        "sha256sum #{Shellwords.escape(remote_path)}"
+        "sha256sum #{escaped_path}"
       )
 
       unless status.success?
