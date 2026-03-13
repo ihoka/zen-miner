@@ -1,13 +1,14 @@
 #!/bin/bash -e
 
-# Strip leading "--" passed by Kamal for interactive commands
-while [ "$1" = "--" ]; do
-  shift
+# Filter out "--" separators passed by Kamal for interactive commands
+args=()
+for arg in "$@"; do
+  [ "$arg" = "--" ] || args+=("$arg")
 done
 
-# Enable higher verbosity for troubleshooting
-if [ "${@: -2:1}" == "./bin/rails" ] && [ "${@: -1:1}" == "server" ]; then
+# Prepare database when starting the server
+if [ "${args[*]: -2:1}" = "./bin/rails" ] && [ "${args[*]: -1:1}" = "server" ]; then
   ./bin/rails db:prepare
 fi
 
-exec "${@}"
+exec "${args[@]}"
