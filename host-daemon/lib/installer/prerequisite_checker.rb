@@ -7,17 +7,12 @@ module Installer
   # Verifies sudo access, required commands, and environment variables
   class PrerequisiteChecker < BaseStep
     REQUIRED_COMMANDS = %w[sudo ruby xmrig].freeze
-    REQUIRED_ENV_VARS = %w[MONERO_WALLET WORKER_ID].freeze
+    REQUIRED_ENV_VARS = %w[MONERO_WALLET].freeze
     MONERO_WALLET_REGEX = /^[48][0-9A-Za-z]{94}$|^4[0-9A-Za-z]{105}$/.freeze
 
     def execute
-      # Check sudo access
+      # Check sudo exists
       return check_sudo unless sudo_available?
-
-      # Verify sudo privileges
-      return verify_sudo_access unless can_sudo?
-
-      logger.info "   ✓ Sudo access confirmed"
 
       # Check required commands
       return check_required_commands unless all_commands_exist?
@@ -48,7 +43,7 @@ module Installer
     end
 
     def can_sudo?
-      result = run_command('sudo', '-v')
+      result = run_command('sudo', '-n', 'true')
       result[:success]
     end
 

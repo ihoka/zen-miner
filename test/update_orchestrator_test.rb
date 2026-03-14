@@ -208,41 +208,41 @@ class SSHExecutorTest < Minitest::Test
     end
   end
 
-  def test_copy_orchestrator_success
+  def test_copy_host_daemon_success
     stdout, stderr, status = "", "", double_success_status
 
     Open3.stub :capture3, [stdout, stderr, status] do
-      assert @executor.copy_orchestrator("host-daemon/xmrig-orchestrator")
+      assert @executor.copy_host_daemon
     end
   end
 
-  def test_copy_orchestrator_failure
+  def test_copy_host_daemon_failure
     stdout, stderr, status = "", "scp: connection failed", double_failure_status
 
     Open3.stub :capture3, [stdout, stderr, status] do
-      refute @executor.copy_orchestrator("host-daemon/xmrig-orchestrator")
+      refute @executor.copy_host_daemon
     end
   end
 
-  def test_update_orchestrator_success
-    stdout = "  ✓ XMRig detected\n  ✓ Orchestrator updated\n  ✓ Service verified"
+  def test_run_install_success
+    stdout = "  ✓ XMRig detected\n  ✓ Orchestrator installed\n  ✓ Service verified"
     stderr = ""
     status = double_success_status
 
     Open3.stub :capture3, [stdout, stderr, status] do
-      result = @executor.update_orchestrator
+      result = @executor.run_install
       assert result[:success]
       assert_match(/verified/i, result[:output])
     end
   end
 
-  def test_update_orchestrator_service_restart_failure
-    stdout = "  ✓ Orchestrator updated"
+  def test_run_install_failure
+    stdout = "  ✓ Orchestrator installed"
     stderr = "Failed to restart xmrig-orchestrator.service"
     status = double_failure_status
 
     Open3.stub :capture3, [stdout, stderr, status] do
-      result = @executor.update_orchestrator
+      result = @executor.run_install
       refute result[:success]
       assert_match(/failed/i, result[:error])
     end
@@ -285,8 +285,8 @@ class SSHExecutorTest < Minitest::Test
     # Should contain SSH options
     assert executed_args.include?("ConnectTimeout=5")
 
-    # Should contain user@host
-    assert executed_args.any? { |arg| arg.include?("deploy@test-host") }
+    # Should contain hostname (without user prefix)
+    assert executed_args.include?("test-host")
 
     # Should contain the actual command
     assert executed_args.include?("echo ok")
@@ -300,8 +300,8 @@ class SSHExecutorTest < Minitest::Test
     Open3.stub :capture3, -> { raise "Should not execute in dry-run mode" } do
       # These should not raise because they shouldn't call Open3.capture3
       assert executor.check_connectivity
-      assert executor.copy_orchestrator("host-daemon/xmrig-orchestrator")
-      result = executor.update_orchestrator
+      assert executor.copy_host_daemon
+      result = executor.run_install
       assert result[:success]
       assert_match(/dry.run/i, result[:output])
     end
@@ -353,15 +353,17 @@ class UpdateCoordinatorTest < Minitest::Test
     # Mock SSHExecutor to always succeed
     mock_executor = Minitest::Mock.new
     mock_executor.expect :check_connectivity, true
-    mock_executor.expect :copy_orchestrator, true, [String]
+    mock_executor.expect :copy_host_daemon, true
     mock_executor.expect :verify_checksum, true, [String]
-    mock_executor.expect :update_orchestrator, { success: true, output: "OK", error: "" }
+    mock_executor.expect :run_install, { success: true, output: "OK", error: "" }
     mock_executor.expect :verify_service, true
+    mock_executor.expect :cleanup_remote, true
     mock_executor.expect :check_connectivity, true
-    mock_executor.expect :copy_orchestrator, true, [String]
+    mock_executor.expect :copy_host_daemon, true
     mock_executor.expect :verify_checksum, true, [String]
-    mock_executor.expect :update_orchestrator, { success: true, output: "OK", error: "" }
+    mock_executor.expect :run_install, { success: true, output: "OK", error: "" }
     mock_executor.expect :verify_service, true
+    mock_executor.expect :cleanup_remote, true
 
     with_preflight_stubs do
       OrchestratorUpdater::SSHExecutor.stub :new, mock_executor do
@@ -383,10 +385,11 @@ class UpdateCoordinatorTest < Minitest::Test
           # First host succeeds
           mock = Minitest::Mock.new
           mock.expect :check_connectivity, true
-          mock.expect :copy_orchestrator, true, [String]
+          mock.expect :copy_host_daemon, true
           mock.expect :verify_checksum, true, [String]
-          mock.expect :update_orchestrator, { success: true, output: "OK", error: "" }
+          mock.expect :run_install, { success: true, output: "OK", error: "" }
           mock.expect :verify_service, true
+          mock.expect :cleanup_remote, true
           mock
         else
           # Second host fails on connectivity
@@ -448,15 +451,17 @@ class UpdateCoordinatorTest < Minitest::Test
     # Mock all hosts succeed
     mock_executor = Minitest::Mock.new
     mock_executor.expect :check_connectivity, true
-    mock_executor.expect :copy_orchestrator, true, [String]
+    mock_executor.expect :copy_host_daemon, true
     mock_executor.expect :verify_checksum, true, [String]
-    mock_executor.expect :update_orchestrator, { success: true, output: "OK", error: "" }
+    mock_executor.expect :run_install, { success: true, output: "OK", error: "" }
     mock_executor.expect :verify_service, true
+    mock_executor.expect :cleanup_remote, true
     mock_executor.expect :check_connectivity, true
-    mock_executor.expect :copy_orchestrator, true, [String]
+    mock_executor.expect :copy_host_daemon, true
     mock_executor.expect :verify_checksum, true, [String]
-    mock_executor.expect :update_orchestrator, { success: true, output: "OK", error: "" }
+    mock_executor.expect :run_install, { success: true, output: "OK", error: "" }
     mock_executor.expect :verify_service, true
+    mock_executor.expect :cleanup_remote, true
 
     with_preflight_stubs do
       OrchestratorUpdater::SSHExecutor.stub :new, mock_executor do

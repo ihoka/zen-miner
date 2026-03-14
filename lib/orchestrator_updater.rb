@@ -61,13 +61,12 @@ module OrchestratorUpdater
 
     # Verify a host's SSH fingerprint against known hosts
     # @param hostname [String] hostname to verify
-    # @param ssh_user [String] SSH user for connection
     # @return [Boolean] true if host key matches known hosts
-    def self.verify_host(hostname, ssh_user: "deploy")
+    def self.verify_host(hostname)
       return true unless File.exist?(KNOWN_HOSTS_FILE)
 
       # Get current host key
-      current_key = get_host_key(hostname, ssh_user)
+      current_key = get_host_key(hostname)
       return false unless current_key
 
       # Check against known hosts file
@@ -80,10 +79,9 @@ module OrchestratorUpdater
 
     # Add a host to known hosts file
     # @param hostname [String] hostname to add
-    # @param ssh_user [String] SSH user for connection
-    def self.add_host(hostname, ssh_user: "deploy")
+    def self.add_host(hostname)
       # Get host key
-      host_key = get_host_key(hostname, ssh_user)
+      host_key = get_host_key(hostname)
       return false unless host_key
 
       # Ensure ~/.ssh directory exists with proper permissions
@@ -113,9 +111,8 @@ module OrchestratorUpdater
 
     # Get SSH host key fingerprint
     # @param hostname [String] hostname
-    # @param ssh_user [String] SSH user
     # @return [String, nil] host key or nil if failed
-    def self.get_host_key(hostname, ssh_user)
+    def self.get_host_key(hostname)
       # Use ssh-keyscan to get host key
       stdout, stderr, status = Open3.capture3("ssh-keyscan", "-H", hostname)
 
@@ -163,11 +160,9 @@ module OrchestratorUpdater
     # @param hostname [String] hostname to check
     # @param remote_path [String] path to file on remote host
     # @param expected_checksum [String] expected SHA256 checksum
-    # @param ssh_user [String] SSH user for connection
     # @return [Boolean] true if checksums match
-    def self.verify_remote_checksum(hostname, remote_path, expected_checksum, ssh_user: "deploy")
+    def self.verify_remote_checksum(hostname, remote_path, expected_checksum)
       raise HostnameError, "Invalid hostname: #{hostname}" unless HostValidator.valid?(hostname)
-      raise ArgumentError, "Invalid ssh_user" unless ssh_user.match?(/\A[a-zA-Z0-9_-]+\z/)
 
       escaped_path = Shellwords.escape(remote_path)
       # Get checksum from remote host
@@ -175,7 +170,7 @@ module OrchestratorUpdater
         "ssh",
         "-o", "ConnectTimeout=5",
         "-o", "StrictHostKeyChecking=yes",
-        "#{ssh_user}@#{hostname}",
+        hostname,
         "sha256sum #{escaped_path}"
       )
 
@@ -210,12 +205,13 @@ module OrchestratorUpdater
   class SSHExecutor
     attr_reader :hostname
 
+    REMOTE_DIR = "/tmp/xmrig-orchestrator-deploy"
+    LOCAL_DIR = "host-daemon"
+
     def initialize(hostname, dry_run: false, verbose: false)
       @hostname = hostname
       @dry_run = dry_run
       @verbose = verbose
-      @ssh_user = "deploy"
-      @temp_prefix = "/tmp/xmrig-orchestrator-#{Process.pid}"
     end
 
     def check_connectivity
@@ -225,73 +221,50 @@ module OrchestratorUpdater
       status.success? && stdout.strip == "ok"
     end
 
-    def copy_orchestrator(source_path)
+    def copy_host_daemon
       return true if @dry_run
 
-      destination = "#{@temp_prefix}-#{@hostname}"
-      _stdout, _stderr, status = scp(source_path, destination)
+      # Clean up any previous deploy directory
+      ssh("rm -rf #{Shellwords.escape(REMOTE_DIR)}")
+
+      # Copy entire host-daemon directory to remote host
+      _stdout, _stderr, status = scp_recursive(LOCAL_DIR, REMOTE_DIR)
       status.success?
     end
 
     def verify_checksum(expected_checksum)
       return true if @dry_run
 
-      temp_file = "#{@temp_prefix}-#{@hostname}"
       ChecksumManager.verify_remote_checksum(
         @hostname,
-        temp_file,
-        expected_checksum,
-        ssh_user: @ssh_user
+        "#{REMOTE_DIR}/xmrig-orchestrator",
+        expected_checksum
       )
     end
 
-    def update_orchestrator
+    def run_install
       if @dry_run
         return {
           success: true,
-          output: "[DRY RUN] Would update orchestrator on #{@hostname}",
+          output: "[DRY RUN] Would run install script on #{@hostname}",
           error: ""
         }
       end
 
-      temp_file = "#{@temp_prefix}-#{@hostname}"
+      escaped_dir = Shellwords.escape(REMOTE_DIR)
 
-      # Properly escape temp_file to prevent shell injection
-      escaped_temp_file = Shellwords.escape(temp_file)
+      env_vars = %w[MONERO_WALLET POOL_URL CPU_MAX_THREADS_HINT]
+        .select { |var| ENV[var] }
+        .map { |var| "#{var}=#{Shellwords.escape(ENV[var])}" }
+        .join(" ")
 
-      update_script = <<~BASH
+      install_script = <<~BASH
         set -e
-
-        # 1. Verify xmrig binary exists
-        if ! command -v xmrig &> /dev/null; then
-          echo "  ✗ Error: xmrig not found in PATH"
-          exit 1
-        fi
-        echo "  ✓ XMRig found at: $(which xmrig)"
-
-        # 2. Install orchestrator
-        sudo cp #{escaped_temp_file} /usr/local/bin/xmrig-orchestrator
-        sudo chmod +x /usr/local/bin/xmrig-orchestrator
-        echo "  ✓ Orchestrator updated"
-
-        # 3. Restart service
-        sudo systemctl restart xmrig-orchestrator
-        sleep 2
-
-        # 4. Verify running
-        if sudo systemctl is-active --quiet xmrig-orchestrator; then
-          echo "  ✓ Service verified"
-        else
-          echo "  ✗ Service failed to start"
-          sudo journalctl -u xmrig-orchestrator -n 10 --no-pager
-          exit 1
-        fi
-
-        # 5. Cleanup
-        rm -f #{escaped_temp_file}
+        cd #{escaped_dir}
+        #{env_vars} ruby install
       BASH
 
-      stdout, stderr, status = ssh(update_script)
+      stdout, stderr, status = ssh(install_script)
 
       {
         success: status.success?,
@@ -307,18 +280,24 @@ module OrchestratorUpdater
       status.success?
     end
 
+    def cleanup_remote
+      return true if @dry_run
+
+      escaped_dir = Shellwords.escape(REMOTE_DIR)
+      _stdout, _stderr, status = ssh("rm -rf #{escaped_dir}")
+      status.success?
+    end
+
     private
 
     def ssh(command)
-      # Use array form to prevent shell interpretation
-      # Add connection monitoring
       ssh_args = [
         "ssh",
         "-o", "ConnectTimeout=5",
-        "-o", "ServerAliveInterval=5",    # Detect dead connections
-        "-o", "ServerAliveCountMax=3",     # 3 failed keepalives = disconnect
-        "-o", "StrictHostKeyChecking=yes", # Require known host key
-        "#{@ssh_user}@#{@hostname}",
+        "-o", "ServerAliveInterval=5",
+        "-o", "ServerAliveCountMax=3",
+        "-o", "StrictHostKeyChecking=yes",
+        @hostname,
         command
       ]
 
@@ -327,15 +306,14 @@ module OrchestratorUpdater
       Open3.capture3(*ssh_args)
     end
 
-    def scp(source, destination)
-      # Use array form to prevent shell interpretation
+    def scp_recursive(source, destination)
       scp_args = [
         "scp",
-        "-q",
+        "-r", "-q",
         "-o", "ConnectTimeout=5",
-        "-o", "StrictHostKeyChecking=yes",  # Require known host key
+        "-o", "StrictHostKeyChecking=yes",
         source,
-        "#{@ssh_user}@#{@hostname}:#{destination}"
+        "#{@hostname}:#{destination}"
       ]
 
       log_command(scp_args.join(" ")) if @verbose
@@ -508,9 +486,9 @@ module OrchestratorUpdater
         end
         puts " ✓"
 
-        # Step 2: Copy orchestrator
-        print "[#{timestamp}] Copying orchestrator file..."
-        unless executor.copy_orchestrator(SOURCE_FILE)
+        # Step 2: Copy host-daemon directory
+        print "[#{timestamp}] Copying host-daemon directory..."
+        unless executor.copy_host_daemon
           puts " ✗ FAILED"
           @results[:failed] << { host: hostname, reason: "SCP transfer failed" }
           return
@@ -526,23 +504,22 @@ module OrchestratorUpdater
         end
         puts " ✓"
 
-        # Step 4: Execute update
-        print "[#{timestamp}] Executing update commands..."
-        result = executor.update_orchestrator
+        # Step 4: Run install script
+        print "[#{timestamp}] Running install script..."
+        result = executor.run_install
         unless result[:success]
           puts " ✗ FAILED"
           puts
-          # Truncate output to prevent memory issues
           output = truncate_output(result[:output], MAX_OUTPUT_SIZE)
           error = truncate_output(result[:error], MAX_OUTPUT_SIZE)
           puts "Output: #{output}" unless output.empty?
           puts "Error: #{error}" unless error.empty?
-          @results[:failed] << { host: hostname, reason: "Update commands failed" }
+          @results[:failed] << { host: hostname, reason: "Install script failed" }
           return
         end
         puts " ✓"
 
-        # Print update output (truncated)
+        # Print install output (truncated)
         output = truncate_output(result[:output], MAX_OUTPUT_SIZE)
         puts output unless output.empty?
 
@@ -554,6 +531,9 @@ module OrchestratorUpdater
           return
         end
         puts " ✓"
+
+        # Step 6: Cleanup remote files
+        executor.cleanup_remote
 
         elapsed = Time.now - step_start
         puts
@@ -592,7 +572,7 @@ module OrchestratorUpdater
       end
       puts
       puts "Source: #{File.expand_path(SOURCE_FILE)}"
-      puts "Update method: Direct SSH as deploy user"
+      puts "Update method: Direct SSH (using local SSH key)"
     end
 
     def display_summary

@@ -1,14 +1,8 @@
 #!/bin/bash -e
 
-# Filter out "--" separators passed by Kamal for interactive commands
-args=()
-for arg in "$@"; do
-  [ "$arg" = "--" ] || args+=("$arg")
-done
-
 # Prepare database when starting the server
-if [ "${args[*]: -2:1}" = "./bin/rails" ] && [ "${args[*]: -1:1}" = "server" ]; then
+if [ "${@: -2:1}" == "./bin/rails" ] && [ "${@: -1:1}" == "server" ]; then
   ./bin/rails db:prepare
 fi
 
-exec "${args[@]}"
+exec "${@}"

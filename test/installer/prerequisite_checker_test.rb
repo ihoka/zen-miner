@@ -16,9 +16,7 @@ class PrerequisiteCheckerTest < Minitest::Test
         # Mock Open3 commands
         Open3.stub :capture3, lambda { |*args|
           cmd = args.join(" ")
-          if cmd.include?("sudo -v")
-            ["", "", mock_status(true)]
-          elsif cmd.include?("gem list -i bundler")
+          if cmd.include?("gem list -i bundler")
             ["", "", mock_status(true)]
           elsif cmd.include?("bundler/inline")
             ["", "", mock_status(true)]
@@ -42,24 +40,6 @@ class PrerequisiteCheckerTest < Minitest::Test
       assert result.failure?
       assert_includes result.message, "sudo not found"
       assert_equal "sudo", result.data[:missing_command]
-    end
-  end
-
-  def test_execute_fails_without_sudo_privileges
-    @checker.stub :command_exists?, true do
-      Open3.stub :capture3, lambda { |*args|
-        cmd = args.join(" ")
-        if cmd.include?("sudo -v")
-          ["", "", mock_status(false)]
-        else
-          ["", "", mock_status(true)]
-        end
-      } do
-        result = @checker.execute
-
-        assert result.failure?
-        assert_includes result.message, "Unable to obtain sudo privileges"
-      end
     end
   end
 
@@ -109,26 +89,6 @@ class PrerequisiteCheckerTest < Minitest::Test
     end
   ensure
     ENV["MONERO_WALLET"] = old_wallet if old_wallet
-  end
-
-  def test_execute_fails_without_worker_id
-    # Clear WORKER_ID and set MONERO_WALLET
-    old_worker = ENV.delete("WORKER_ID")
-    with_env("MONERO_WALLET" => "4" + "A" * 94) do
-      @checker.stub :command_exists?, true do
-        Open3.stub :capture3, lambda { |*args|
-          ["", "", mock_status(true)]
-        } do
-          result = @checker.execute
-
-          assert result.failure?
-          assert_includes result.message, "Missing required environment variables"
-          assert_includes result.data[:missing_env_vars], "WORKER_ID"
-        end
-      end
-    end
-  ensure
-    ENV["WORKER_ID"] = old_worker if old_worker
   end
 
   def test_validate_monero_wallet_accepts_standard_address

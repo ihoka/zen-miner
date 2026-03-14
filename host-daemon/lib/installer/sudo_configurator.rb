@@ -51,15 +51,13 @@ module Installer
     private
 
     def write_and_install_sudoers_file(sudoers_file, sudoers_content)
-      # Create temp file path with process ID for uniqueness
-      temp_file_path = "#{sudoers_file}.tmp.#{Process.pid}"
+      # Write to /tmp first (writable without sudo), then sudo move to /etc/sudoers.d/
+      temp_file_path = "/tmp/sudoers-#{File.basename(sudoers_file)}.tmp.#{Process.pid}"
 
       # Set restrictive umask before file creation
       old_umask = File.umask(0077)
 
       begin
-        # Write content to temp file with secure permissions from the start
-        # This prevents TOCTOU race condition
         File.open(temp_file_path, 'w', 0440) do |f|
           f.write(sudoers_content)
         end

@@ -22,7 +22,7 @@ module Installer
     def execute
       # Get environment variables
       wallet = ENV['MONERO_WALLET']
-      worker_id = ENV['WORKER_ID']
+      worker_id = `hostname -s`.strip
       pool_url = ENV.fetch('POOL_URL', DEFAULT_POOL_URL)
       cpu_max_threads_raw = ENV.fetch('CPU_MAX_THREADS_HINT', DEFAULT_CPU_MAX_THREADS_HINT)
 

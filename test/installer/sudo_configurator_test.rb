@@ -57,7 +57,7 @@ class SudoConfiguratorTest < Minitest::Test
 
   def test_execute_fails_when_write_fails
     File.stub :open, lambda { |*args, &block|
-      raise Errno::EACCES, "Permission denied @ rb_sysopen - /etc/sudoers.d/xmrig-orchestrator.tmp.#{Process.pid}"
+      raise Errno::EACCES, "Permission denied @ rb_sysopen - /tmp/sudoers-xmrig-orchestrator.tmp.#{Process.pid}"
     } do
       result = @configurator.execute
 
