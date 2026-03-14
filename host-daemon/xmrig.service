@@ -12,11 +12,16 @@ StandardOutput=append:/var/log/xmrig/xmrig.log
 StandardError=append:/var/log/xmrig/xmrig.log
 
 # Security hardening
-NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true
 ReadWritePaths=/var/log/xmrig
+
+# MSR access for RandomX hashrate optimization
+# CAP_SYS_RAWIO allows xmrig to read/write Model Specific Registers
+# NoNewPrivileges must be false to allow AmbientCapabilities
+NoNewPrivileges=false
+AmbientCapabilities=CAP_SYS_RAWIO
 
 [Install]
 WantedBy=multi-user.target

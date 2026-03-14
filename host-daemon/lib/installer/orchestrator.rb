@@ -18,6 +18,7 @@ module Installer
       DirectoryManager
       ConfigGenerator
       DaemonInstaller
+      MsrConfigurator
       SystemdInstaller
       LogrotateConfigurator
     ].freeze

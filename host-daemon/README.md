@@ -311,6 +311,40 @@ sudo journalctl -u xmrig-orchestrator -f
 sudo sqlite3 /mnt/rails-storage/production.sqlite3 "SELECT id, action, status, created_at FROM xmrig_commands WHERE hostname='$(hostname)' AND status='pending';"
 ```
 
+### MSR Failed / Low Hashrate
+
+If XMRig logs show `FAILED TO APPLY MSR MOD, HASHRATE WILL BE LOW`:
+
+```bash
+# 1. Check msr kernel module is loaded
+lsmod | grep msr
+
+# If not loaded:
+sudo modprobe msr
+echo 'msr' | sudo tee /etc/modules-load.d/msr.conf
+
+# 2. Check /dev/cpu/*/msr permissions (should be group xmrig)
+ls -la /dev/cpu/0/msr
+
+# If owned by root:root with 0600:
+echo 'KERNEL=="msr[0-9]*", MODE="0660", GROUP="xmrig"' | sudo tee /etc/udev/rules.d/99-msr.rules
+sudo udevadm control --reload-rules && sudo udevadm trigger
+
+# 3. Check xmrig has CAP_SYS_RAWIO capability
+getcap /usr/local/bin/xmrig
+
+# If not set:
+sudo setcap cap_sys_rawio+ep /usr/local/bin/xmrig
+
+# 4. Verify systemd service has AmbientCapabilities
+grep -i cap /etc/systemd/system/xmrig.service
+# Should show: AmbientCapabilities=CAP_SYS_RAWIO
+# And: NoNewPrivileges=false
+
+# 5. Restart xmrig
+sudo systemctl restart xmrig
+```
+
 ### Zero Hashrate
 
 ```bash
@@ -359,10 +393,12 @@ sudo userdel xmrig
 - **Orchestrator runs as root:** Required for systemctl commands
 - **XMRig runs as 'xmrig' user:** Non-privileged systemd service
 - **systemd sandboxing:**
-  - `NoNewPrivileges=true`
+  - `NoNewPrivileges=false` (required for MSR ambient capabilities)
+  - `AmbientCapabilities=CAP_SYS_RAWIO` (MSR access for RandomX optimization)
   - `PrivateTmp=true`
   - `ProtectSystem=strict`
   - `ProtectHome=true`
+- **MSR access:** Controlled via udev rule (`/etc/udev/rules.d/99-msr.rules`) granting xmrig group access to `/dev/cpu/*/msr`
 - **HTTP API:** Localhost-only binding (127.0.0.1)
 - **Database access:** Read/write via volume mount
 

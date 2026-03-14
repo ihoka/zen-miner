@@ -108,7 +108,9 @@
       "Bash(kamal deploy:*)",
       "Bash(mise install:*)",
       "Bash(bundle update:*)",
-      "Bash(brew install:*)"
+      "Bash(brew install:*)",
+      "WebFetch(domain:kamal-deploy.org)",
+      "Bash(bundle exec:*)"
     ]
   }
 }
